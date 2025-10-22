@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billboard Hot 100 Chart Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Billboard Hot 100 Chart Analyzer</h1>
+            <p class="subtitle">Generate Excel chart history for any artist</p>
+        </header>
+
+        <div class="card">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form action="{{ url_for('analyze') }}" method="POST">
+                <div class="form-group">
+                    <label for="artist_name">Artist Name</label>
+                    <input
+                        type="text"
+                        id="artist_name"
+                        name="artist_name"
+                        placeholder="e.g., Taylor Swift, Drake, The Weeknd"
+                        required
+                        autofocus
+                    >
+                </div>
+
+                <button type="submit" class="btn-primary">
+                    Generate Chart History
+                </button>
+            </form>
+        </div>
+
+        <div class="info-section">
+            <h2>How It Works</h2>
+            <ol>
+                <li>Enter the artist name you want to analyze</li>
+                <li>Click "Generate Chart History"</li>
+                <li>Download your Excel file with complete Billboard Hot 100 chart history</li>
+            </ol>
+
+            <h3>About</h3>
+            <p>Analyzes Billboard Hot 100 chart performance data to create detailed Excel reports for any artist.</p>
+        </div>
+
+        <footer>
+            <p>Billboard Hot 100 Chart Analyzer | Created with Python & Flask</p>
+        </footer>
+    </div>
+</body>
+</html>
