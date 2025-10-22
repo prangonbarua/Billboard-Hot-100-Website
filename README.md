@@ -4,15 +4,14 @@ A modern web application for analyzing Billboard Hot 100 chart performance by ar
 
 ## Features
 
-- **Black-on-Black Aesthetic**: Sleek, minimalist design with pure black background
-- **Simple Interface**: Just enter an artist name and download their chart history
+- **Simple Interface**: Enter an artist name and download their chart history
 - **No Upload Required**: Uses hosted Billboard Hot 100 dataset
 - **Excel Export**: Download complete chart history as Excel files
 - **Mobile Responsive**: Works on all devices
 
 ## Live Demo
 
-[Coming Soon - Deploy to Render/Railway]
+Coming Soon
 
 ## Quick Start (Local)
 
