@@ -3,17 +3,48 @@ from flask import Flask, render_template, request, send_file, flash, redirect, u
 import os
 import pandas as pd
 import tempfile
+from pathlib import Path
+import subprocess
 
 app = Flask(__name__)
 app.secret_key = 'billboard_hot_100_secret_key_change_in_production'
 
-# Billboard Hot 100 data URL (public dataset)
-BILLBOARD_DATA_URL = 'https://raw.githubusercontent.com/HipsterVizNinja/random-data/main/Music/hot-100-current.csv'
+# Auto-update Billboard data on startup
+print("Checking for Billboard data updates...")
+try:
+    result = subprocess.run(['python3', 'auto_update_data.py'],
+                          capture_output=True, text=True, timeout=60)
+    if result.returncode == 0:
+        print("✓ Data check complete!")
+except Exception as e:
+    print(f"⚠️  Could not check for updates: {e}")
 
-def process_billboard_data(csv_path, artist_name):
+# Find Billboard Hot 100 data file
+DATA_DIR = Path('data')
+DESKTOP_PATH = Path.home() / 'Desktop' / 'hot100.csv'
+
+# Try data directory first, then Desktop
+def find_data_file():
+    if DATA_DIR.exists():
+        for name in ['hot-100-current.csv', 'hot100.csv', 'billboard_hot_100.csv']:
+            filepath = DATA_DIR / name
+            if filepath.exists():
+                return filepath
+    if DESKTOP_PATH.exists():
+        return DESKTOP_PATH
+    raise FileNotFoundError("Billboard data not found! Run auto_update_data.py first.")
+
+BILLBOARD_DATA_PATH = find_data_file()
+
+# Load data once at startup (cached)
+print(f"Loading Billboard Hot 100 data from {BILLBOARD_DATA_PATH.name}...")
+BILLBOARD_DATA = pd.read_csv(BILLBOARD_DATA_PATH, low_memory=False)
+print(f"Loaded {len(BILLBOARD_DATA)} records!")
+
+def process_billboard_data(artist_name):
     """Process Billboard data and return Excel file path"""
-    # Load the data
-    data = pd.read_csv(csv_path, low_memory=False)
+    # Use the pre-loaded data
+    data = BILLBOARD_DATA.copy()
 
     # Check if all required columns are present
     required_cols = {'Date', 'Song', 'Artist', 'Rank'}
@@ -83,8 +114,8 @@ def analyze():
         return redirect(url_for('index'))
 
     try:
-        # Process the data using online dataset
-        output_file, error = process_billboard_data(BILLBOARD_DATA_URL, artist_name)
+        # Process the data using pre-loaded dataset
+        output_file, error = process_billboard_data(artist_name)
 
         if error:
             flash(error, 'error')
