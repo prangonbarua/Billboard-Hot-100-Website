@@ -35,6 +35,7 @@
         <div class="card chart-container">
             <h2>Chart Performance Over Time</h2>
             <canvas id="chartCanvas"></canvas>
+            <div id="customLegend" class="custom-legend"></div>
         </div>
 
         <div class="card">
@@ -43,10 +44,9 @@
                 {% for song in songs %}
                 <div class="song-card" onclick="showSongDetails('{{ song.name }}')">
                     <div class="song-cover">
-                        <img src="https://via.placeholder.com/120x120/000000/ffffff?text={{ song.song_only[:15] }}"
+                        <img src="https://placehold.co/80x80/000000/ffffff/png?text=Song"
                              alt="{{ song.name }}"
-                             class="cover-img"
-                             onerror="this.src='https://via.placeholder.com/120x120/000000/ffffff?text=No+Cover'">
+                             class="cover-img">
                     </div>
                     <div class="song-info">
                         <h3>{{ song.name }}</h3>
@@ -139,19 +139,7 @@
                 aspectRatio: 2,
                 plugins: {
                     legend: {
-                        position: 'right',
-                        align: 'start',
-                        labels: {
-                            color: '#fff',
-                            padding: 10,
-                            font: {
-                                size: 11
-                            },
-                            boxWidth: 15,
-                            boxHeight: 15,
-                            usePointStyle: true
-                        },
-                        maxWidth: 300
+                        display: false
                     },
                     tooltip: {
                         callbacks: {
@@ -169,7 +157,8 @@
                             unit: 'month',
                             displayFormats: {
                                 month: 'MMM yyyy'
-                            }
+                            },
+                            tooltipFormat: 'MMM dd, yyyy'
                         },
                         grid: {
                             color: '#333'
@@ -205,6 +194,21 @@
                 }
             }
         });
+
+        // Create custom scrollable legend
+        const legendContainer = document.getElementById('customLegend');
+        let legendHTML = '<div class="legend-title">Songs:</div><div class="legend-items">';
+        songs.forEach((song, index) => {
+            const color = colors[index % colors.length];
+            legendHTML += `
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: ${color};"></span>
+                    <span class="legend-label">${song}</span>
+                </div>
+            `;
+        });
+        legendHTML += '</div>';
+        legendContainer.innerHTML = legendHTML;
 
         // Modal functions for song details
         function showSongDetails(songName) {
