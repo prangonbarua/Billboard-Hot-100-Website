@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ artist_name }} - Chart History</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{{ artist_name }}</h1>
+            <p class="subtitle">Billboard Hot 100 Chart History</p>
+        </header>
+
+        <div class="card">
+            <div class="stats-summary">
+                <div class="stat-item">
+                    <h3>{{ total_songs }}</h3>
+                    <p>Songs Charted</p>
+                </div>
+                <div class="stat-item">
+                    <h3>{{ total_weeks }}</h3>
+                    <p>Weeks on Chart</p>
+                </div>
+                <div class="stat-item">
+                    <h3>#{{ peak_position }}</h3>
+                    <p>Peak Position</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card chart-container">
+            <h2>Chart Performance Over Time</h2>
+            <canvas id="chartCanvas"></canvas>
+        </div>
+
+        <div class="card">
+            <h2>Song Performance</h2>
+            <div class="songs-grid">
+                {% for song in songs %}
+                <div class="song-card">
+                    <h3>{{ song.name }}</h3>
+                    <div class="song-stats">
+                        <span>Peak: #{{ song.peak }}</span>
+                        <span>Weeks: {{ song.weeks }}</span>
+                        <span>First: {{ song.first_date }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card actions">
+            <a href="{{ url_for('download_excel', artist_name=artist_name) }}" class="btn-download">
+                Download Excel Report
+            </a>
+            <a href="{{ url_for('index') }}" class="btn-secondary">
+                Search Another Artist
+            </a>
+        </div>
+
+        <footer>
+            <p>Billboard Hot 100 Chart Analyzer</p>
+        </footer>
+    </div>
+
+    <script>
+        const chartData = {{ chart_data|tojson }};
+
+        // Process data for Chart.js
+        const datasets = [];
+        const songs = Object.keys(chartData);
+
+        // Color palette for different songs
+        const colors = [
+            'rgba(255, 99, 132, 0.8)',
+            'rgba(54, 162, 235, 0.8)',
+            'rgba(255, 206, 86, 0.8)',
+            'rgba(75, 192, 192, 0.8)',
+            'rgba(153, 102, 255, 0.8)',
+            'rgba(255, 159, 64, 0.8)',
+            'rgba(199, 199, 199, 0.8)',
+            'rgba(83, 102, 255, 0.8)',
+            'rgba(255, 99, 255, 0.8)',
+            'rgba(99, 255, 132, 0.8)'
+        ];
+
+        songs.forEach((song, index) => {
+            const data = chartData[song];
+            datasets.push({
+                label: song,
+                data: data.map(item => ({
+                    x: item.date,
+                    y: 101 - item.rank  // Invert so #1 is at top
+                })),
+                borderColor: colors[index % colors.length],
+                backgroundColor: colors[index % colors.length],
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 5
+            });
+        });
+
+        // Create chart
+        const ctx = document.getElementById('chartCanvas').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                aspectRatio: 2,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#fff',
+                            padding: 15,
+                            font: {
+                                size: 12
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const rank = 101 - context.parsed.y;
+                                return context.dataset.label + ': #' + rank;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'month',
+                            displayFormats: {
+                                month: 'MMM yyyy'
+                            }
+                        },
+                        grid: {
+                            color: '#333'
+                        },
+                        ticks: {
+                            color: '#fff'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Date',
+                            color: '#fff'
+                        }
+                    },
+                    y: {
+                        reverse: false,
+                        min: 0,
+                        max: 100,
+                        grid: {
+                            color: '#333'
+                        },
+                        ticks: {
+                            color: '#fff',
+                            callback: function(value) {
+                                return '#' + (101 - value);
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Chart Position',
+                            color: '#fff'
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

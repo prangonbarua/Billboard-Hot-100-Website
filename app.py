@@ -105,6 +105,67 @@ def process_billboard_data(artist_name):
 def index():
     return render_template('index.html')
 
+def prepare_visualization_data(artist_name):
+    """Prepare data for visualization"""
+    # Use the pre-loaded data
+    data = BILLBOARD_DATA.copy()
+
+    # Clean text fields
+    data['Song'] = data['Song'].str.strip().str.lower()
+    data['Artist'] = data['Artist'].str.strip().str.lower()
+
+    # Filter by artist
+    filtered_data = data[data['Artist'].str.contains(artist_name.lower(), na=False)]
+
+    if filtered_data.empty:
+        return None
+
+    # Convert dates
+    filtered_data['Date'] = pd.to_datetime(filtered_data['Date'], errors='coerce')
+    filtered_data = filtered_data.dropna(subset=['Date'])
+
+    # Create Song_Artist column
+    filtered_data = filtered_data.copy()
+    filtered_data['Song_Artist'] = (
+        filtered_data['Song'].str.title() + " (" + filtered_data['Artist'].str.title() + ")"
+    )
+
+    # Prepare chart data
+    chart_data = {}
+    for song in filtered_data['Song_Artist'].unique():
+        song_data = filtered_data[filtered_data['Song_Artist'] == song][['Date', 'Rank']].copy()
+        song_data = song_data.sort_values('Date')
+        chart_data[song] = [
+            {'date': row['Date'].strftime('%Y-%m-%d'), 'rank': int(row['Rank'])}
+            for _, row in song_data.iterrows()
+        ]
+
+    # Calculate statistics
+    songs_list = []
+    for song in filtered_data['Song_Artist'].unique():
+        song_df = filtered_data[filtered_data['Song_Artist'] == song]
+        songs_list.append({
+            'name': song,
+            'peak': int(song_df['Rank'].min()),
+            'weeks': len(song_df),
+            'first_date': song_df['Date'].min().strftime('%b %Y')
+        })
+
+    # Sort by peak position
+    songs_list.sort(key=lambda x: x['peak'])
+
+    stats = {
+        'total_songs': len(filtered_data['Song_Artist'].unique()),
+        'total_weeks': len(filtered_data),
+        'peak_position': int(filtered_data['Rank'].min())
+    }
+
+    return {
+        'chart_data': chart_data,
+        'songs': songs_list,
+        'stats': stats
+    }
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
     # Check if artist name is provided
@@ -114,18 +175,42 @@ def analyze():
         return redirect(url_for('index'))
 
     try:
-        # Process the data using pre-loaded dataset
+        # Prepare visualization data
+        viz_data = prepare_visualization_data(artist_name)
+
+        if viz_data is None:
+            flash(f'No results found for artist: {artist_name}', 'error')
+            return redirect(url_for('index'))
+
+        # Render results page with visualization
+        return render_template(
+            'results.html',
+            artist_name=artist_name.title(),
+            chart_data=viz_data['chart_data'],
+            songs=viz_data['songs'],
+            total_songs=viz_data['stats']['total_songs'],
+            total_weeks=viz_data['stats']['total_weeks'],
+            peak_position=viz_data['stats']['peak_position']
+        )
+
+    except Exception as e:
+        flash(f'An error occurred: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
+@app.route('/download/<artist_name>')
+def download_excel(artist_name):
+    """Download Excel file for artist"""
+    try:
         output_file, error = process_billboard_data(artist_name)
 
         if error:
             flash(error, 'error')
             return redirect(url_for('index'))
 
-        # Send the file for download
         return send_file(
             output_file,
             as_attachment=True,
-            download_name=f'{artist_name.title().replace(" ", "_")}_Chart_History.xlsx',
+            download_name=f'{artist_name.replace(" ", "_")}_Chart_History.xlsx',
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
 
