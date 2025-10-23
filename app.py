@@ -273,32 +273,83 @@ def get_artist_info(artist_name):
     number_ones = len(artist_data[artist_data['Rank'] == 1])
     top_10_hits = artist_data[artist_data['Rank'] <= 10]['Song'].nunique()
 
-    # Generate description
-    description = f"Billboard Hot 100 artist with {total_songs} charted songs and {total_weeks} total weeks on the chart. "
-    if number_ones > 0:
-        description += f"Achieved {number_ones} #1 hit{'s' if number_ones > 1 else ''} and "
-    description += f"{top_10_hits} top 10 hit{'s' if top_10_hits != 1 else ''}. "
-    description += f"Chart presence from {first_chart} to {latest_chart}."
+    # Generate engaging description
+    description_parts = []
 
-    # Try to get Spotify profile image
+    # Start with chart success
+    if number_ones > 0:
+        if number_ones == 1:
+            description_parts.append(f"Chart-topping artist with {number_ones} #1 hit")
+        else:
+            description_parts.append(f"Chart-topping powerhouse with {number_ones} #1 hits")
+    elif top_10_hits >= 5:
+        description_parts.append("Top 10 hitmaker")
+    else:
+        description_parts.append("Billboard Hot 100 charting artist")
+
+    # Add total presence
+    description_parts.append(f"with {total_songs} {'song' if total_songs == 1 else 'songs'} charting for {total_weeks} weeks")
+
+    # Add top 10 context
+    if top_10_hits > 0 and number_ones == 0:
+        description_parts.append(f"including {top_10_hits} top 10 {'hit' if top_10_hits == 1 else 'hits'}")
+    elif top_10_hits > number_ones:
+        description_parts.append(f"and {top_10_hits} top 10 {'hit' if top_10_hits == 1 else 'hits'}")
+
+    # Add date range
+    if first_chart == latest_chart:
+        description_parts.append(f"Chart debut: {first_chart}")
+    else:
+        years_active = latest_chart.split()[-1]
+        first_year = first_chart.split()[-1]
+        if years_active == first_year:
+            description_parts.append(f"Active since {first_chart}")
+        else:
+            description_parts.append(f"Charting from {first_chart} to {latest_chart}")
+
+    description = ". ".join(description_parts) + "."
+
+    # Try to get Spotify profile image and social media
     image_url = None
     spotify_url = None
+    social_media = {}
 
     if SPOTIFY_ENABLED:
         try:
             results = sp.search(q=artist_name, type='artist', limit=1)
             if results['artists']['items']:
-                artist = results['artists']['items'][0]
-                image_url = artist['images'][0]['url'] if artist['images'] else None
-                spotify_url = artist['external_urls']['spotify']
+                artist_obj = results['artists']['items'][0]
+                image_url = artist_obj['images'][0]['url'] if artist_obj['images'] else None
+                spotify_url = artist_obj['external_urls']['spotify']
+
+                # Try to get social media from Spotify artist data
+                # Note: Spotify doesn't directly provide social media, so we'll build generic links
+                artist_name_clean = artist_data['Artist'].iloc[0].strip()
+
+                # Create potential social media URLs (these are guesses based on artist name)
+                # In a production app, you'd want to verify these exist
+                social_media = {
+                    'instagram': f"https://instagram.com/{artist_name_clean.lower().replace(' ', '').replace('.', '')}",
+                    'twitter': f"https://twitter.com/{artist_name_clean.lower().replace(' ', '').replace('.', '')}",
+                    'youtube': f"https://www.youtube.com/results?search_query={artist_name_clean.replace(' ', '+')}+official",
+                    'facebook': f"https://facebook.com/{artist_name_clean.replace(' ', '')}"
+                }
         except Exception as e:
             print(f"Spotify API error: {e}")
+            artist_name_clean = artist_data['Artist'].iloc[0].strip()
+            social_media = {
+                'instagram': f"https://instagram.com/{artist_name_clean.lower().replace(' ', '').replace('.', '')}",
+                'twitter': f"https://twitter.com/{artist_name_clean.lower().replace(' ', '').replace('.', '')}",
+                'youtube': f"https://www.youtube.com/results?search_query={artist_name_clean.replace(' ', '+')}+official",
+                'facebook': f"https://facebook.com/{artist_name_clean.replace(' ', '')}"
+            }
 
     return jsonify({
         'name': artist_data['Artist'].iloc[0].strip(),
         'image_url': image_url,
         'description': description,
         'spotify_url': spotify_url,
+        'social_media': social_media,
         'stats': {
             'total_songs': total_songs,
             'total_weeks': total_weeks,

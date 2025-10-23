@@ -691,30 +691,85 @@ footer {
     margin-bottom: 20px;
 }
 
-.artist-social {
+.artist-social-links {
     margin-top: 15px;
 }
 
-.social-link {
-    display: inline-flex;
+.social-icons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.social-icon {
+    display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    background: #1DB954;
-    color: white;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #fff;
     text-decoration: none;
-    border-radius: 25px;
-    font-weight: 500;
     transition: all 0.3s ease;
 }
 
-.social-link:hover {
-    background: #1ed760;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(29, 185, 84, 0.3);
+.social-icon:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(255, 255, 255, 0.15);
 }
 
-.social-link svg {
+.social-icon.spotify {
+    background: #1DB954;
+    border-color: #1DB954;
+}
+
+.social-icon.spotify:hover {
+    background: #1ed760;
+    box-shadow: 0 6px 20px rgba(29, 185, 84, 0.4);
+}
+
+.social-icon.instagram {
+    background: linear-gradient(45deg, #f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%);
+    border-color: #dc2743;
+}
+
+.social-icon.instagram:hover {
+    box-shadow: 0 6px 20px rgba(220, 39, 67, 0.5);
+}
+
+.social-icon.twitter {
+    background: #000;
+    border-color: #fff;
+}
+
+.social-icon.twitter:hover {
+    background: #333;
+    box-shadow: 0 6px 20px rgba(255, 255, 255, 0.3);
+}
+
+.social-icon.youtube {
+    background: #FF0000;
+    border-color: #FF0000;
+}
+
+.social-icon.youtube:hover {
+    background: #cc0000;
+    box-shadow: 0 6px 20px rgba(255, 0, 0, 0.5);
+}
+
+.social-icon.facebook {
+    background: #1877F2;
+    border-color: #1877F2;
+}
+
+.social-icon.facebook:hover {
+    background: #166fe5;
+    box-shadow: 0 6px 20px rgba(24, 119, 242, 0.5);
+}
+
+.social-icon svg {
     fill: white;
 }
 
