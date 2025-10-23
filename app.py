@@ -254,35 +254,59 @@ def get_artists():
 
 @app.route('/api/artist-info/<artist_name>')
 def get_artist_info(artist_name):
-    """API endpoint for Spotify artist information"""
-    if not SPOTIFY_ENABLED:
-        return jsonify({'error': 'Spotify API not configured'}), 503
+    """API endpoint for artist information (Spotify image + Billboard stats)"""
 
-    try:
-        # Search for artist on Spotify
-        results = sp.search(q=artist_name, type='artist', limit=1)
+    # Generate Billboard-based description
+    modern_data = BILLBOARD_DATA[pd.to_datetime(BILLBOARD_DATA['Date'], errors='coerce') >= '1990-01-01']
+    artist_data = modern_data[modern_data['Artist'].str.strip().str.lower() == artist_name.lower()].copy()
 
-        if results['artists']['items']:
-            artist = results['artists']['items'][0]
+    if artist_data.empty:
+        return jsonify({'error': 'Artist not found in Billboard data'}), 404
 
-            # Get artist's top tracks for additional context
-            top_tracks = sp.artist_top_tracks(artist['id'])
+    # Calculate Billboard statistics
+    artist_data['Date'] = pd.to_datetime(artist_data['Date'], errors='coerce')
+    total_songs = artist_data['Song'].nunique()
+    total_weeks = len(artist_data)
+    peak_position = int(artist_data['Rank'].min())
+    first_chart = artist_data['Date'].min().strftime('%B %Y')
+    latest_chart = artist_data['Date'].max().strftime('%B %Y')
+    number_ones = len(artist_data[artist_data['Rank'] == 1])
+    top_10_hits = artist_data[artist_data['Rank'] <= 10]['Song'].nunique()
 
-            return jsonify({
-                'name': artist['name'],
-                'image_url': artist['images'][0]['url'] if artist['images'] else None,
-                'followers': artist['followers']['total'],
-                'genres': artist['genres'],
-                'popularity': artist['popularity'],
-                'spotify_url': artist['external_urls']['spotify'],
-                'top_tracks': [{'name': track['name'], 'preview_url': track['preview_url']}
-                              for track in top_tracks['tracks'][:5]]
-            })
-        else:
-            return jsonify({'error': 'Artist not found'}), 404
+    # Generate description
+    description = f"Billboard Hot 100 artist with {total_songs} charted songs and {total_weeks} total weeks on the chart. "
+    if number_ones > 0:
+        description += f"Achieved {number_ones} #1 hit{'s' if number_ones > 1 else ''} and "
+    description += f"{top_10_hits} top 10 hit{'s' if top_10_hits != 1 else ''}. "
+    description += f"Chart presence from {first_chart} to {latest_chart}."
 
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    # Try to get Spotify profile image
+    image_url = None
+    spotify_url = None
+
+    if SPOTIFY_ENABLED:
+        try:
+            results = sp.search(q=artist_name, type='artist', limit=1)
+            if results['artists']['items']:
+                artist = results['artists']['items'][0]
+                image_url = artist['images'][0]['url'] if artist['images'] else None
+                spotify_url = artist['external_urls']['spotify']
+        except Exception as e:
+            print(f"Spotify API error: {e}")
+
+    return jsonify({
+        'name': artist_data['Artist'].iloc[0].strip(),
+        'image_url': image_url,
+        'description': description,
+        'spotify_url': spotify_url,
+        'stats': {
+            'total_songs': total_songs,
+            'total_weeks': total_weeks,
+            'peak_position': peak_position,
+            'number_ones': number_ones,
+            'top_10_hits': top_10_hits
+        }
+    })
 
 @app.route('/download/<artist_name>')
 def download_excel(artist_name):
