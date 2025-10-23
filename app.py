@@ -189,10 +189,14 @@ def prepare_visualization_data(artist_name):
     # Sort by first chart date (chronological order - oldest first)
     songs_list.sort(key=lambda x: x['first_date_sort'])
 
+    # Calculate top 10 hits and #1 songs
+    top_10_hits = len(filtered_data[filtered_data['Rank'] <= 10]['Song_Artist'].unique())
+    number_ones = len(filtered_data[filtered_data['Rank'] == 1]['Song_Artist'].unique())
+
     stats = {
         'total_songs': len(filtered_data['Song_Artist'].unique()),
-        'total_weeks': len(filtered_data),
-        'peak_position': int(filtered_data['Rank'].min())
+        'top_10_hits': top_10_hits,
+        'number_ones': number_ones
     }
 
     return {
@@ -224,8 +228,8 @@ def analyze():
             chart_data=viz_data['chart_data'],
             songs=viz_data['songs'],
             total_songs=viz_data['stats']['total_songs'],
-            total_weeks=viz_data['stats']['total_weeks'],
-            peak_position=viz_data['stats']['peak_position']
+            top_10_hits=viz_data['stats']['top_10_hits'],
+            number_ones=viz_data['stats']['number_ones']
         )
 
     except Exception as e:
@@ -254,14 +258,16 @@ def get_artists():
 
 @app.route('/api/artist-info/<artist_name>')
 def get_artist_info(artist_name):
-    """API endpoint for artist information (Spotify image + Billboard stats)"""
+    """API endpoint for artist information from Spotify (image) + Wikipedia/Billboard overview"""
 
-    # Generate Billboard-based description
+    # Get Billboard data for statistics
     modern_data = BILLBOARD_DATA[pd.to_datetime(BILLBOARD_DATA['Date'], errors='coerce') >= '1990-01-01']
     artist_data = modern_data[modern_data['Artist'].str.strip().str.lower() == artist_name.lower()].copy()
 
     if artist_data.empty:
         return jsonify({'error': 'Artist not found in Billboard data'}), 404
+
+    artist_name_proper = artist_data['Artist'].iloc[0].strip()
 
     # Calculate Billboard statistics
     artist_data['Date'] = pd.to_datetime(artist_data['Date'], errors='coerce')
@@ -273,83 +279,89 @@ def get_artist_info(artist_name):
     number_ones = len(artist_data[artist_data['Rank'] == 1])
     top_10_hits = artist_data[artist_data['Rank'] <= 10]['Song'].nunique()
 
-    # Generate engaging description
+    # Create comprehensive Billboard-based description
     description_parts = []
 
-    # Start with chart success
     if number_ones > 0:
         if number_ones == 1:
-            description_parts.append(f"Chart-topping artist with {number_ones} #1 hit")
+            description_parts.append(f"Billboard Hot 100 chart-topper with {number_ones} #1 hit")
         else:
-            description_parts.append(f"Chart-topping powerhouse with {number_ones} #1 hits")
+            description_parts.append(f"Billboard Hot 100 chart-topper with {number_ones} #1 hits")
     elif top_10_hits >= 5:
-        description_parts.append("Top 10 hitmaker")
+        description_parts.append(f"Billboard Hot 100 artist with {top_10_hits} top 10 hits")
     else:
         description_parts.append("Billboard Hot 100 charting artist")
 
-    # Add total presence
-    description_parts.append(f"with {total_songs} {'song' if total_songs == 1 else 'songs'} charting for {total_weeks} weeks")
+    description_parts.append(f"{total_songs} songs charted for {total_weeks} total weeks")
 
-    # Add top 10 context
-    if top_10_hits > 0 and number_ones == 0:
-        description_parts.append(f"including {top_10_hits} top 10 {'hit' if top_10_hits == 1 else 'hits'}")
-    elif top_10_hits > number_ones:
-        description_parts.append(f"and {top_10_hits} top 10 {'hit' if top_10_hits == 1 else 'hits'}")
-
-    # Add date range
-    if first_chart == latest_chart:
-        description_parts.append(f"Chart debut: {first_chart}")
+    if first_chart != latest_chart:
+        description_parts.append(f"Charting from {first_chart} to {latest_chart}")
     else:
-        years_active = latest_chart.split()[-1]
-        first_year = first_chart.split()[-1]
-        if years_active == first_year:
-            description_parts.append(f"Active since {first_chart}")
-        else:
-            description_parts.append(f"Charting from {first_chart} to {latest_chart}")
+        description_parts.append(f"First charted in {first_chart}")
 
-    description = ". ".join(description_parts) + "."
+    description = " • ".join(description_parts)
 
-    # Try to get Spotify profile image and social media
+    # Initialize defaults
     image_url = None
     spotify_url = None
-    social_media = {}
+    overview = description  # Use Billboard description as default
 
+    # Try to fetch from Wikipedia first (image + description)
+    try:
+        import requests
+        wiki_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{requests.utils.quote(artist_name_proper)}"
+        response = requests.get(wiki_url, timeout=10, headers={'User-Agent': 'Mozilla/5.0 BillboardAnalyzer/1.0'})
+
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Wikipedia API response for {artist_name_proper}:", data.keys())
+
+            # Get Wikipedia image (try multiple sources)
+            if 'originalimage' in data and data['originalimage'] and 'source' in data['originalimage']:
+                image_url = data['originalimage']['source']
+                print(f"✓ Found originalimage: {image_url}")
+            elif 'thumbnail' in data and data['thumbnail'] and 'source' in data['thumbnail']:
+                # Use larger thumbnail - replace size in URL
+                thumb_url = data['thumbnail']['source']
+                image_url = thumb_url.replace('/50px-', '/600px-').replace('/100px-', '/600px-').replace('/200px-', '/600px-').replace('/300px-', '/600px-')
+                print(f"✓ Found thumbnail (enlarged): {image_url}")
+            else:
+                print(f"✗ No image found in Wikipedia response for {artist_name_proper}")
+
+            # Get Wikipedia description
+            if 'extract' in data and data['extract']:
+                wiki_extract = data['extract']
+                # Use first 2 sentences from Wikipedia
+                sentences = wiki_extract.split('. ')
+                if len(sentences) >= 2:
+                    overview = '. '.join(sentences[:2]) + '.'
+                else:
+                    overview = wiki_extract
+                print(f"✓ Got Wikipedia description: {len(overview)} chars")
+
+        print(f"Final: image_url={image_url is not None}, overview_len={len(overview) if overview else 0}")
+    except Exception as e:
+        print(f"✗ Wikipedia API error for {artist_name_proper}: {e}")
+
+    # Try to get Spotify data as supplement if available
     if SPOTIFY_ENABLED:
         try:
             results = sp.search(q=artist_name, type='artist', limit=1)
             if results['artists']['items']:
                 artist_obj = results['artists']['items'][0]
-                image_url = artist_obj['images'][0]['url'] if artist_obj['images'] else None
                 spotify_url = artist_obj['external_urls']['spotify']
 
-                # Try to get social media from Spotify artist data
-                # Note: Spotify doesn't directly provide social media, so we'll build generic links
-                artist_name_clean = artist_data['Artist'].iloc[0].strip()
-
-                # Create potential social media URLs (these are guesses based on artist name)
-                # In a production app, you'd want to verify these exist
-                social_media = {
-                    'instagram': f"https://instagram.com/{artist_name_clean.lower().replace(' ', '').replace('.', '')}",
-                    'twitter': f"https://twitter.com/{artist_name_clean.lower().replace(' ', '').replace('.', '')}",
-                    'youtube': f"https://www.youtube.com/results?search_query={artist_name_clean.replace(' ', '+')}+official",
-                    'facebook': f"https://facebook.com/{artist_name_clean.replace(' ', '')}"
-                }
+                # Use Spotify image if Wikipedia didn't provide one
+                if not image_url and artist_obj['images']:
+                    image_url = artist_obj['images'][0]['url']
         except Exception as e:
             print(f"Spotify API error: {e}")
-            artist_name_clean = artist_data['Artist'].iloc[0].strip()
-            social_media = {
-                'instagram': f"https://instagram.com/{artist_name_clean.lower().replace(' ', '').replace('.', '')}",
-                'twitter': f"https://twitter.com/{artist_name_clean.lower().replace(' ', '').replace('.', '')}",
-                'youtube': f"https://www.youtube.com/results?search_query={artist_name_clean.replace(' ', '+')}+official",
-                'facebook': f"https://facebook.com/{artist_name_clean.replace(' ', '')}"
-            }
 
     return jsonify({
-        'name': artist_data['Artist'].iloc[0].strip(),
+        'name': artist_name_proper,
         'image_url': image_url,
-        'description': description,
         'spotify_url': spotify_url,
-        'social_media': social_media,
+        'overview': overview,
         'stats': {
             'total_songs': total_songs,
             'total_weeks': total_weeks,
@@ -358,6 +370,49 @@ def get_artist_info(artist_name):
             'top_10_hits': top_10_hits
         }
     })
+
+@app.route('/api/song-image/<artist_name>/<song_name>')
+def get_song_image(artist_name, song_name):
+    """API endpoint to get song/album artwork from iTunes API"""
+
+    try:
+        import requests
+        from urllib.parse import quote
+
+        # iTunes API search
+        query = f"{song_name} {artist_name}"
+        itunes_url = f"https://itunes.apple.com/search?term={quote(query)}&media=music&entity=song&limit=3"
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+        }
+
+        response = requests.get(itunes_url, timeout=5, headers=headers)
+
+        if response.status_code == 200 and response.text:
+            try:
+                data = response.json()
+
+                if data.get('resultCount', 0) > 0:
+                    result = data['results'][0]
+                    # Get high-res artwork (replace 100x100 with 600x600)
+                    artwork_url = result.get('artworkUrl100', '').replace('100x100', '600x600')
+
+                    if artwork_url:
+                        return jsonify({
+                            'image_url': artwork_url,
+                            'album_name': result.get('collectionName', ''),
+                            'track_name': result.get('trackName', ''),
+                            'source': 'itunes'
+                        })
+            except ValueError as json_error:
+                print(f"iTunes JSON parse error for '{song_name}' by {artist_name}: {json_error}")
+
+        return jsonify({'error': 'Track not found'}), 404
+
+    except Exception as e:
+        print(f"iTunes API error for '{song_name}' by {artist_name}: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/download/<artist_name>')
 def download_excel(artist_name):
@@ -385,7 +440,7 @@ if __name__ == '__main__':
     print("Billboard Hot 100 Chart Analyzer - Web App")
     print("="*60)
     print("\nStarting server...")
-    print("Open your browser and go to: http://localhost:5000")
+    print("Open your browser and go to: http://localhost:5001")
     print("\nPress CTRL+C to stop the server")
     print("="*60 + "\n")
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)

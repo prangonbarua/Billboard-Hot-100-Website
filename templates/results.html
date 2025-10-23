@@ -25,7 +25,6 @@
                 </div>
                 <div class="artist-details">
                     <h2 id="artistDisplayName"></h2>
-                    <p class="artist-description" id="artistDescription"></p>
                     <div class="artist-social-links" id="artistSocialLinks"></div>
                 </div>
             </div>
@@ -38,12 +37,12 @@
                     <p>Songs Charted</p>
                 </div>
                 <div class="stat-item">
-                    <h3>{{ total_weeks }}</h3>
-                    <p>Weeks on Chart</p>
+                    <h3>{{ top_10_hits }}</h3>
+                    <p>Top 10 Hits</p>
                 </div>
                 <div class="stat-item">
-                    <h3>#{{ peak_position }}</h3>
-                    <p>Peak Position</p>
+                    <h3>{{ number_ones }}</h3>
+                    <p>#1 Songs</p>
                 </div>
             </div>
         </div>
@@ -58,11 +57,13 @@
             <h2>Song Performance <span class="hint">(Click a song for weekly details)</span></h2>
             <div class="songs-grid">
                 {% for song in songs %}
-                <div class="song-card" onclick="showSongChart('{{ song.name }}')">
+                <div class="song-card" onclick="showSongDetails('{{ song.name }}')">
                     <div class="song-cover">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%231a1a1a' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='40'%3E♪%3C/text%3E%3C/svg%3E"
                              alt="{{ song.name }}"
-                             class="cover-img">
+                             class="cover-img"
+                             data-song-only="{{ song.song_only }}"
+                             data-artist-only="{{ song.artist_only }}">
                     </div>
                     <div class="song-info">
                         <h3>{{ song.name }}</h3>
@@ -71,7 +72,7 @@
                             <span>Weeks: {{ song.weeks }}</span>
                             <span>First: {{ song.first_date }}</span>
                         </div>
-                        <div class="click-hint">Click to view chart history →</div>
+                        <div class="click-hint">Click to view week-by-week →</div>
                     </div>
                 </div>
                 {% endfor %}
@@ -109,10 +110,12 @@
         const chartData = {{ chart_data|tojson }};
         const artistName = "{{ artist_name }}";
 
-        // Fetch artist info (Billboard description + Spotify image)
+        // Fetch artist info
         fetch(`/api/artist-info/${encodeURIComponent(artistName)}`)
             .then(response => response.json())
             .then(data => {
+                console.log('Artist info received:', data);
+
                 if (data.error) {
                     console.log('Artist info not available:', data.error);
                     return;
@@ -124,83 +127,64 @@
                 // Set artist name
                 document.getElementById('artistDisplayName').textContent = data.name;
 
-                // Set Billboard-based description
-                document.getElementById('artistDescription').textContent = data.description;
-
-                // Set artist image (circular) from Spotify if available
+                // Set artist image
+                const artistImage = document.getElementById('artistImage');
                 if (data.image_url) {
-                    document.getElementById('artistImage').src = data.image_url;
+                    console.log('Setting artist image:', data.image_url);
+                    artistImage.src = data.image_url;
+                    artistImage.onerror = function() {
+                        console.error('Failed to load artist image:', data.image_url);
+                        this.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Ccircle cx='75' cy='75' r='75' fill='%231a1a1a'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='60'%3E♪%3C/text%3E%3C/svg%3E";
+                    };
                 } else {
-                    // Use placeholder if no Spotify image
-                    document.getElementById('artistImage').src =
-                        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Ccircle cx='75' cy='75' r='75' fill='%231a1a1a'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='60'%3E♪%3C/text%3E%3C/svg%3E";
+                    console.log('No artist image provided');
+                    artistImage.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Ccircle cx='75' cy='75' r='75' fill='%231a1a1a'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='60'%3E♪%3C/text%3E%3C/svg%3E";
                 }
 
-                // Add social media links with icons
+                // Add social media links (only verified ones)
                 const socialLinksContainer = document.getElementById('artistSocialLinks');
-                let socialHTML = '<div class="social-icons">';
+                let socialHTML = '';
 
-                // Spotify
+                // Only add Spotify if available (verified link)
                 if (data.spotify_url) {
-                    socialHTML += `
-                        <a href="${data.spotify_url}" target="_blank" class="social-icon spotify" title="Spotify">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-                            </svg>
-                        </a>
+                    console.log('Adding Spotify link:', data.spotify_url);
+                    socialHTML = `
+                        <div class="social-icons">
+                            <a href="${data.spotify_url}" target="_blank" class="social-icon spotify" title="Listen on Spotify">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                                </svg>
+                            </a>
+                        </div>
                     `;
+                } else {
+                    console.log('No Spotify URL available');
                 }
 
-                // Instagram
-                if (data.social_media && data.social_media.instagram) {
-                    socialHTML += `
-                        <a href="${data.social_media.instagram}" target="_blank" class="social-icon instagram" title="Instagram">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-                            </svg>
-                        </a>
-                    `;
-                }
-
-                // Twitter/X
-                if (data.social_media && data.social_media.twitter) {
-                    socialHTML += `
-                        <a href="${data.social_media.twitter}" target="_blank" class="social-icon twitter" title="Twitter / X">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-                            </svg>
-                        </a>
-                    `;
-                }
-
-                // YouTube
-                if (data.social_media && data.social_media.youtube) {
-                    socialHTML += `
-                        <a href="${data.social_media.youtube}" target="_blank" class="social-icon youtube" title="YouTube">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                            </svg>
-                        </a>
-                    `;
-                }
-
-                // Facebook
-                if (data.social_media && data.social_media.facebook) {
-                    socialHTML += `
-                        <a href="${data.social_media.facebook}" target="_blank" class="social-icon facebook" title="Facebook">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                            </svg>
-                        </a>
-                    `;
-                }
-
-                socialHTML += '</div>';
                 socialLinksContainer.innerHTML = socialHTML;
             })
             .catch(error => {
-                console.log('Could not load artist info:', error);
+                console.error('Could not load artist info:', error);
             });
+
+        // Load album art for each song
+        document.querySelectorAll('.cover-img').forEach(img => {
+            const songName = img.getAttribute('data-song-only');
+            const artistName = img.getAttribute('data-artist-only');
+
+            if (songName && artistName) {
+                fetch(`/api/song-image/${encodeURIComponent(artistName)}/${encodeURIComponent(songName)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.image_url) {
+                            img.src = data.image_url;
+                        }
+                    })
+                    .catch(error => {
+                        console.log(`Could not load image for ${songName}:`, error);
+                    });
+            }
+        });
 
         // Process data for Chart.js
         const datasets = [];
@@ -220,6 +204,21 @@
             'rgba(99, 255, 132, 0.8)'
         ];
 
+        // Find the min and max dates across all songs
+        let minDate = null;
+        let maxDate = null;
+
+        songs.forEach((song) => {
+            const data = chartData[song];
+            data.forEach(item => {
+                const date = new Date(item.date);
+                if (!minDate || date < minDate) minDate = date;
+                if (!maxDate || date > maxDate) maxDate = date;
+            });
+        });
+
+        console.log('Chart date range:', minDate, 'to', maxDate);
+
         songs.forEach((song, index) => {
             const data = chartData[song];
             const dataLength = data.length;
@@ -231,7 +230,7 @@
             datasets.push({
                 label: song,
                 data: data.map(item => ({
-                    x: item.date,
+                    x: new Date(item.date).getTime(),  // Convert to timestamp
                     y: item.rank  // Use actual rank (1-100)
                 })),
                 borderColor: colors[index % colors.length],
@@ -299,6 +298,48 @@
                             },
                             mode: 'xy',
                             onZoomComplete: function({chart}) {
+                                // Calculate visible date range in days
+                                const xScale = chart.scales.x;
+                                const min = xScale.min;
+                                const max = xScale.max;
+                                const rangeDays = (max - min) / (1000 * 60 * 60 * 24);
+
+                                // Adaptive time unit based on zoom level
+                                let newUnit;
+                                if (rangeDays <= 90) {
+                                    // Less than 3 months - show weeks
+                                    newUnit = 'week';
+                                } else if (rangeDays <= 730) {
+                                    // Less than 2 years - show months
+                                    newUnit = 'month';
+                                } else {
+                                    // More than 2 years - show years
+                                    newUnit = 'year';
+                                }
+
+                                // Update time unit if changed
+                                if (chart.options.scales.x.time.unit !== newUnit) {
+                                    chart.options.scales.x.time.unit = newUnit;
+
+                                    // Update tick callback for formatting
+                                    chart.options.scales.x.ticks.callback = function(value, index, ticks) {
+                                        const date = new Date(value);
+                                        if (newUnit === 'week') {
+                                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                                            const day = String(date.getDate()).padStart(2, '0');
+                                            const year = date.getFullYear();
+                                            return `${month}/${day}/${year}`;
+                                        } else if (newUnit === 'month') {
+                                            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                            return `${months[date.getMonth()]} ${date.getFullYear()}`;
+                                        } else {
+                                            return date.getFullYear();
+                                        }
+                                    };
+
+                                    console.log(`Zoom: ${rangeDays.toFixed(0)} days visible, switching to ${newUnit} view`);
+                                }
+
                                 // Force tick recalculation after zoom
                                 chart.update('none');
                             }
@@ -308,22 +349,36 @@
                 scales: {
                     x: {
                         type: 'time',
+                        min: minDate ? minDate.getTime() : undefined,
+                        max: maxDate ? maxDate.getTime() : undefined,
                         time: {
-                            unit: 'month',
+                            unit: 'year',
                             displayFormats: {
-                                month: 'MMM yyyy'
+                                year: 'yyyy',
+                                month: 'MMM yyyy',
+                                week: 'MM/dd/yyyy',
+                                day: 'MM/dd/yyyy'
                             },
-                            tooltipFormat: 'MMM dd, yyyy'
+                            tooltipFormat: 'MM/dd/yyyy'
                         },
                         grid: {
                             color: '#333'
                         },
                         ticks: {
-                            color: '#fff'
+                            color: '#fff',
+                            maxRotation: 45,
+                            minRotation: 0,
+                            autoSkip: true,
+                            autoSkipPadding: 20,
+                            source: 'auto',
+                            callback: function(value, index, ticks) {
+                                const date = new Date(value);
+                                return date.getFullYear();
+                            }
                         },
                         title: {
                             display: true,
-                            text: 'Date',
+                            text: 'Year',
                             color: '#fff'
                         }
                     },
@@ -336,8 +391,13 @@
                         },
                         ticks: {
                             color: '#fff',
-                            autoSkip: false,
+                            stepSize: 1,
+                            autoSkip: true,
+                            precision: 0,
                             callback: function(value, index, ticks) {
+                                // Only show whole numbers
+                                if (!Number.isInteger(value)) return '';
+
                                 const range = this.max - this.min;
 
                                 // Dynamic step size based on zoom level
@@ -373,14 +433,18 @@
             }
         });
 
-        // Create custom scrollable legend with click handlers
+        // Create custom scrollable legend with click handlers and album art
         const legendContainer = document.getElementById('customLegend');
-        let legendHTML = '<div class="legend-title">Songs (click to show/hide):</div><div class="legend-items">';
+        let legendHTML = '<div class="legend-title">Songs (click to view individual chart history):</div><div class="legend-items">';
+
         songs.forEach((song, index) => {
             const color = colors[index % colors.length];
+            const songData = chartData[song];
+            const firstEntry = songData[0];
+
             legendHTML += `
-                <div class="legend-item" data-index="${index}" style="cursor: pointer;">
-                    <span class="legend-color" style="background-color: ${color};"></span>
+                <div class="legend-item" data-index="${index}" data-song-name="${song}" style="cursor: pointer;">
+                    <img class="legend-album-art" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50'%3E%3Crect fill='${color}' width='50' height='50'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='30'%3E♪%3C/text%3E%3C/svg%3E" alt="${song}">
                     <span class="legend-label">${song}</span>
                 </div>
             `;
@@ -388,23 +452,62 @@
         legendHTML += '</div>';
         legendContainer.innerHTML = legendHTML;
 
-        // Add click handlers to legend items
+        // Load album art for legend items
+        document.querySelectorAll('.legend-album-art').forEach((img, index) => {
+            const song = songs[index];
+            const songParts = song.split(' (');
+            const songName = songParts[0];
+            const artistName = songParts[1] ? songParts[1].replace(')', '') : artistName;
+
+            if (songName && artistName) {
+                fetch(`/api/song-image/${encodeURIComponent(artistName)}/${encodeURIComponent(songName)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.image_url) {
+                            img.src = data.image_url;
+                        }
+                    })
+                    .catch(error => {
+                        console.log(`Could not load image for ${songName}:`, error);
+                    });
+            }
+        });
+
+        // Add click handlers to legend items to show individual chart history
         document.querySelectorAll('.legend-item').forEach(item => {
             item.addEventListener('click', function() {
                 const index = parseInt(this.getAttribute('data-index'));
-                const meta = myChart.getDatasetMeta(index);
+                const songName = this.getAttribute('data-song-name');
 
-                // Toggle visibility
-                meta.hidden = meta.hidden === null ? !myChart.data.datasets[index].hidden : null;
+                // Hide all songs
+                songs.forEach((s, i) => {
+                    const meta = myChart.getDatasetMeta(i);
+                    const legendItem = document.querySelector(`.legend-item[data-index="${i}"]`);
 
-                // Update legend item styling
-                if (meta.hidden) {
-                    this.style.opacity = '0.3';
-                } else {
-                    this.style.opacity = '1';
-                }
+                    if (i === index) {
+                        // Show clicked song
+                        meta.hidden = false;
+                        if (legendItem) {
+                            legendItem.classList.add('active');
+                            legendItem.style.opacity = '1';
+                        }
+                    } else {
+                        // Hide other songs
+                        meta.hidden = true;
+                        if (legendItem) {
+                            legendItem.classList.remove('active');
+                            legendItem.style.opacity = '0.3';
+                        }
+                    }
+                });
 
                 myChart.update();
+
+                // Scroll to chart
+                document.getElementById('chartCanvas').scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
             });
         });
 
@@ -459,9 +562,10 @@
             let html = '<div class="weekly-list">';
             sortedData.forEach((entry, index) => {
                 const date = new Date(entry.date);
-                const formattedDate = (date.getMonth() + 1).toString().padStart(2, '0') + '/' +
-                                     date.getDate().toString().padStart(2, '0') + '/' +
-                                     date.getFullYear();
+                const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                const day = date.getDate().toString().padStart(2, '0');
+                const year = date.getFullYear();
+                const formattedDate = `${month}/${day}/${year}`;
 
                 // Add week number
                 const weekNum = index + 1;
