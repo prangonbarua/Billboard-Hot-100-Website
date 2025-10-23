@@ -305,26 +305,31 @@
                                 const rangeDays = (max - min) / (1000 * 60 * 60 * 24);
 
                                 // Adaptive time unit based on zoom level
-                                let newUnit;
+                                let newUnit, newSource;
                                 if (rangeDays <= 90) {
-                                    // Less than 3 months - show weeks
+                                    // Less than 3 months - show actual Billboard chart weeks
                                     newUnit = 'week';
+                                    newSource = 'data'; // Use actual data points (Billboard chart dates)
                                 } else if (rangeDays <= 730) {
                                     // Less than 2 years - show months
                                     newUnit = 'month';
+                                    newSource = 'auto'; // Auto-generate monthly ticks
                                 } else {
                                     // More than 2 years - show years
                                     newUnit = 'year';
+                                    newSource = 'auto'; // Auto-generate yearly ticks
                                 }
 
-                                // Update time unit if changed
-                                if (chart.options.scales.x.time.unit !== newUnit) {
+                                // Update time unit and source if changed
+                                if (chart.options.scales.x.time.unit !== newUnit || chart.options.scales.x.ticks.source !== newSource) {
                                     chart.options.scales.x.time.unit = newUnit;
+                                    chart.options.scales.x.ticks.source = newSource;
 
                                     // Update tick callback for formatting
                                     chart.options.scales.x.ticks.callback = function(value, index, ticks) {
                                         const date = new Date(value);
                                         if (newUnit === 'week') {
+                                            // Show official Billboard chart date (MM/DD/YYYY)
                                             const month = String(date.getMonth() + 1).padStart(2, '0');
                                             const day = String(date.getDate()).padStart(2, '0');
                                             const year = date.getFullYear();
@@ -337,7 +342,7 @@
                                         }
                                     };
 
-                                    console.log(`Zoom: ${rangeDays.toFixed(0)} days visible, switching to ${newUnit} view`);
+                                    console.log(`Zoom: ${rangeDays.toFixed(0)} days visible, switching to ${newUnit} view (source: ${newSource})`);
                                 }
 
                                 // Force tick recalculation after zoom
@@ -370,9 +375,10 @@
                             minRotation: 0,
                             autoSkip: true,
                             autoSkipPadding: 20,
-                            source: 'auto',
+                            source: 'auto', // Auto-generate ticks for year/month, 'data' for week mode
                             callback: function(value, index, ticks) {
                                 const date = new Date(value);
+                                // Default formatting is for year mode
                                 return date.getFullYear();
                             }
                         },
