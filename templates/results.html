@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -14,6 +16,31 @@
             <h1>{{ artist_name }}</h1>
             <p class="subtitle">Billboard Hot 100 Chart History</p>
         </header>
+
+        <!-- Artist Overview Section -->
+        <div class="card artist-overview" id="artistOverview" style="display: none;">
+            <div class="artist-profile">
+                <div class="artist-image-container">
+                    <img id="artistImage" src="" alt="Artist" class="artist-image">
+                </div>
+                <div class="artist-details">
+                    <h2 id="artistDisplayName"></h2>
+                    <div class="artist-genres" id="artistGenres"></div>
+                    <div class="artist-stats-inline">
+                        <span id="artistFollowers"></span>
+                        <span id="artistPopularity"></span>
+                    </div>
+                    <div class="artist-social">
+                        <a id="spotifyLink" href="#" target="_blank" class="social-link">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                            </svg>
+                            View on Spotify
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <div class="card">
             <div class="stats-summary">
@@ -44,8 +71,9 @@
                 {% for song in songs %}
                 <div class="song-card" onclick="showSongDetails('{{ song.name }}')">
                     <div class="song-cover">
-                        <img src="https://placehold.co/80x80/000000/ffffff/png?text=Song"
+                        <img src="https://via.placeholder.com/80x80/1a1a1a/ffffff?text=♪"
                              alt="{{ song.name }}"
+                             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22%3E%3Crect fill=%22%231a1a1a%22 width=%2280%22 height=%2280%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22white%22 font-size=%2240%22%3E♪%3C/text%3E%3C/svg%3E'"
                              class="cover-img">
                     </div>
                     <div class="song-info">
@@ -91,6 +119,50 @@
 
     <script>
         const chartData = {{ chart_data|tojson }};
+        const artistName = "{{ artist_name }}";
+
+        // Fetch artist info from Spotify
+        fetch(`/api/artist-info/${encodeURIComponent(artistName)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.log('Spotify data not available:', data.error);
+                    return;
+                }
+
+                // Show the artist overview section
+                document.getElementById('artistOverview').style.display = 'block';
+
+                // Set artist image (circular)
+                if (data.image_url) {
+                    document.getElementById('artistImage').src = data.image_url;
+                }
+
+                // Set artist name
+                document.getElementById('artistDisplayName').textContent = data.name;
+
+                // Set genres
+                if (data.genres && data.genres.length > 0) {
+                    document.getElementById('artistGenres').innerHTML =
+                        data.genres.slice(0, 3).map(g =>
+                            `<span class="genre-tag">${g}</span>`
+                        ).join('');
+                }
+
+                // Set follower count
+                document.getElementById('artistFollowers').textContent =
+                    `${(data.followers / 1000000).toFixed(1)}M followers`;
+
+                // Set popularity
+                document.getElementById('artistPopularity').textContent =
+                    `Popularity: ${data.popularity}/100`;
+
+                // Set Spotify link
+                document.getElementById('spotifyLink').href = data.spotify_url;
+            })
+            .catch(error => {
+                console.log('Could not load Spotify data:', error);
+            });
 
         // Process data for Chart.js
         const datasets = [];
@@ -122,20 +194,21 @@
                 label: song,
                 data: data.map(item => ({
                     x: item.date,
-                    y: 101 - item.rank  // Invert so #1 is at top
+                    y: item.rank  // Use actual rank (1-100)
                 })),
                 borderColor: colors[index % colors.length],
                 backgroundColor: colors[index % colors.length],
                 borderWidth: borderWidth,
                 pointRadius: pointRadius,
                 pointHoverRadius: pointRadius > 0 ? 5 : 3,
-                tension: 0.1
+                tension: 0.4,  // Smoother curves
+                cubicInterpolationMode: 'monotone'  // Smooth interpolation
             });
         });
 
         // Create chart
         const ctx = document.getElementById('chartCanvas').getContext('2d');
-        new Chart(ctx, {
+        const myChart = new Chart(ctx, {
             type: 'line',
             data: {
                 datasets: datasets
@@ -161,9 +234,32 @@
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                const rank = 101 - context.parsed.y;
-                                return context.dataset.label + ': #' + rank;
+                                return context.dataset.label + ': #' + context.parsed.y;
                             }
+                        }
+                    },
+                    zoom: {
+                        limits: {
+                            y: {min: 1, max: 100},  // Limit Y-axis to #1-#100
+                            x: {
+                                min: 'original',  // Earliest chart date
+                                max: 'original'   // Latest chart date
+                            }
+                        },
+                        pan: {
+                            enabled: true,
+                            mode: 'xy',
+                            modifierKey: null
+                        },
+                        zoom: {
+                            wheel: {
+                                enabled: true,
+                                speed: 0.1
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            mode: 'xy'
                         }
                     }
                 },
@@ -190,16 +286,21 @@
                         }
                     },
                     y: {
-                        reverse: false,
-                        min: 0,
+                        reverse: true,  // #1 at top, #100 at bottom
+                        min: 1,
                         max: 100,
                         grid: {
                             color: '#333'
                         },
                         ticks: {
                             color: '#fff',
+                            stepSize: 10,  // Show tick every 10 positions
                             callback: function(value) {
-                                return '#' + (101 - value);
+                                // Show labels at 1, 10, 20, 30, etc.
+                                if (value === 1 || value % 10 === 0) {
+                                    return '#' + value;
+                                }
+                                return '';
                             }
                         },
                         title: {
@@ -212,13 +313,13 @@
             }
         });
 
-        // Create custom scrollable legend
+        // Create custom scrollable legend with click handlers
         const legendContainer = document.getElementById('customLegend');
-        let legendHTML = '<div class="legend-title">Songs:</div><div class="legend-items">';
+        let legendHTML = '<div class="legend-title">Songs (click to show/hide):</div><div class="legend-items">';
         songs.forEach((song, index) => {
             const color = colors[index % colors.length];
             legendHTML += `
-                <div class="legend-item">
+                <div class="legend-item" data-index="${index}" style="cursor: pointer;">
                     <span class="legend-color" style="background-color: ${color};"></span>
                     <span class="legend-label">${song}</span>
                 </div>
@@ -226,6 +327,26 @@
         });
         legendHTML += '</div>';
         legendContainer.innerHTML = legendHTML;
+
+        // Add click handlers to legend items
+        document.querySelectorAll('.legend-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const index = parseInt(this.getAttribute('data-index'));
+                const meta = myChart.getDatasetMeta(index);
+
+                // Toggle visibility
+                meta.hidden = meta.hidden === null ? !myChart.data.datasets[index].hidden : null;
+
+                // Update legend item styling
+                if (meta.hidden) {
+                    this.style.opacity = '0.3';
+                } else {
+                    this.style.opacity = '1';
+                }
+
+                myChart.update();
+            });
+        });
 
         // Modal functions for song details
         function showSongDetails(songName) {

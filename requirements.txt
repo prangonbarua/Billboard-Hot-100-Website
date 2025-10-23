@@ -4,3 +4,4 @@ openpyxl==3.1.2
 Werkzeug==3.0.1
 gunicorn==21.2.0
 kaggle==1.5.16
+spotipy==2.23.0

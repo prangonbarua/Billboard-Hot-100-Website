@@ -1,13 +1,24 @@
 #!/usr/bin/env python3
-from flask import Flask, render_template, request, send_file, flash, redirect, url_for
+from flask import Flask, render_template, request, send_file, flash, redirect, url_for, jsonify
 import os
 import pandas as pd
 import tempfile
 from pathlib import Path
 import subprocess
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
 
 app = Flask(__name__)
 app.secret_key = 'billboard_hot_100_secret_key_change_in_production'
+
+# Spotify API setup (using environment variables for credentials)
+# Set SPOTIPY_CLIENT_ID and SPOTIPY_CLIENT_SECRET in environment
+try:
+    sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials())
+    SPOTIFY_ENABLED = True
+except Exception as e:
+    print(f"⚠️  Spotify API not configured: {e}")
+    SPOTIFY_ENABLED = False
 
 # Auto-update Billboard data on startup
 print("Checking for Billboard data updates...")
@@ -163,6 +174,7 @@ def prepare_visualization_data(artist_name):
         song_df = filtered_data[filtered_data['Song_Artist'] == song]
         # Extract just the song name (before the parenthesis)
         song_name_only = song.split(' (')[0] if ' (' in song else song
+        first_date = song_df['Date'].min()
 
         songs_list.append({
             'name': song,
@@ -170,11 +182,12 @@ def prepare_visualization_data(artist_name):
             'artist_only': artist_proper,
             'peak': int(song_df['Rank'].min()),
             'weeks': len(song_df),
-            'first_date': song_df['Date'].min().strftime('%b %Y')
+            'first_date': first_date.strftime('%b %Y'),
+            'first_date_sort': first_date  # For sorting
         })
 
-    # Sort by peak position
-    songs_list.sort(key=lambda x: x['peak'])
+    # Sort by first chart date (chronological order - oldest first)
+    songs_list.sort(key=lambda x: x['first_date_sort'])
 
     stats = {
         'total_songs': len(filtered_data['Song_Artist'].unique()),
@@ -230,14 +243,46 @@ def get_artists():
     # Get unique artists
     artists = modern_data['Artist'].str.strip().unique()
 
-    # Filter by query if provided
+    # Filter by query if provided - use startswith instead of contains
     if query:
-        artists = [a for a in artists if query in a.lower()]
+        artists = [a for a in artists if a.lower().startswith(query)]
 
     # Sort and limit to 50 results
     artists = sorted(artists)[:50]
 
     return {'artists': list(artists)}
+
+@app.route('/api/artist-info/<artist_name>')
+def get_artist_info(artist_name):
+    """API endpoint for Spotify artist information"""
+    if not SPOTIFY_ENABLED:
+        return jsonify({'error': 'Spotify API not configured'}), 503
+
+    try:
+        # Search for artist on Spotify
+        results = sp.search(q=artist_name, type='artist', limit=1)
+
+        if results['artists']['items']:
+            artist = results['artists']['items'][0]
+
+            # Get artist's top tracks for additional context
+            top_tracks = sp.artist_top_tracks(artist['id'])
+
+            return jsonify({
+                'name': artist['name'],
+                'image_url': artist['images'][0]['url'] if artist['images'] else None,
+                'followers': artist['followers']['total'],
+                'genres': artist['genres'],
+                'popularity': artist['popularity'],
+                'spotify_url': artist['external_urls']['spotify'],
+                'top_tracks': [{'name': track['name'], 'preview_url': track['preview_url']}
+                              for track in top_tracks['tracks'][:5]]
+            })
+        else:
+            return jsonify({'error': 'Artist not found'}), 404
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/download/<artist_name>')
 def download_excel(artist_name):
