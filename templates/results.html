@@ -42,13 +42,21 @@
             <div class="songs-grid">
                 {% for song in songs %}
                 <div class="song-card" onclick="showSongDetails('{{ song.name }}')">
-                    <h3>{{ song.name }}</h3>
-                    <div class="song-stats">
-                        <span>Peak: #{{ song.peak }}</span>
-                        <span>Weeks: {{ song.weeks }}</span>
-                        <span>First: {{ song.first_date }}</span>
+                    <div class="song-cover">
+                        <img src="https://via.placeholder.com/120x120/000000/ffffff?text={{ song.song_only[:15] }}"
+                             alt="{{ song.name }}"
+                             class="cover-img"
+                             onerror="this.src='https://via.placeholder.com/120x120/000000/ffffff?text=No+Cover'">
                     </div>
-                    <div class="click-hint">Click for weekly breakdown →</div>
+                    <div class="song-info">
+                        <h3>{{ song.name }}</h3>
+                        <div class="song-stats">
+                            <span>Peak: #{{ song.peak }}</span>
+                            <span>Weeks: {{ song.weeks }}</span>
+                            <span>First: {{ song.first_date }}</span>
+                        </div>
+                        <div class="click-hint">Click for weekly breakdown →</div>
+                    </div>
                 </div>
                 {% endfor %}
             </div>
@@ -131,14 +139,19 @@
                 aspectRatio: 2,
                 plugins: {
                     legend: {
-                        position: 'bottom',
+                        position: 'right',
+                        align: 'start',
                         labels: {
                             color: '#fff',
-                            padding: 15,
+                            padding: 10,
                             font: {
-                                size: 12
-                            }
-                        }
+                                size: 11
+                            },
+                            boxWidth: 15,
+                            boxHeight: 15,
+                            usePointStyle: true
+                        },
+                        maxWidth: 300
                     },
                     tooltip: {
                         callbacks: {
@@ -204,14 +217,14 @@
 
             // Get song data
             const songData = chartData[songName];
-            if (!songData) {
-                weeklyDataDiv.innerHTML = '<p>No data available</p>';
+            if (!songData || songData.length === 0) {
+                weeklyDataDiv.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No chart data available for this song.</p>';
                 modal.style.display = 'block';
                 return;
             }
 
-            // Sort by date (oldest first)
-            const sortedData = songData.sort((a, b) => new Date(a.date) - new Date(b.date));
+            // Sort by date (oldest first) - make a copy to avoid mutating original
+            const sortedData = [...songData].sort((a, b) => new Date(a.date) - new Date(b.date));
 
             // Create weekly breakdown
             let html = '<div class="weekly-list">';

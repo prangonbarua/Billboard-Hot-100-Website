@@ -110,25 +110,39 @@ def prepare_visualization_data(artist_name):
     # Use the pre-loaded data
     data = BILLBOARD_DATA.copy()
 
-    # Clean text fields
-    data['Song'] = data['Song'].str.strip().str.lower()
-    data['Artist'] = data['Artist'].str.strip().str.lower()
+    # Keep original capitalization - only strip whitespace
+    data['Song_Clean'] = data['Song'].str.strip()
+    data['Artist_Clean'] = data['Artist'].str.strip()
 
-    # Filter by artist
-    filtered_data = data[data['Artist'].str.contains(artist_name.lower(), na=False)]
+    # Create lowercase versions for matching only
+    data['Song_Lower'] = data['Song_Clean'].str.lower()
+    data['Artist_Lower'] = data['Artist_Clean'].str.lower()
+
+    # Filter by artist (case-insensitive)
+    filtered_data = data[data['Artist_Lower'].str.contains(artist_name.lower(), na=False)].copy()
 
     if filtered_data.empty:
         return None
 
     # Convert dates
-    filtered_data['Date'] = pd.to_datetime(filtered_data['Date'], errors='coerce')
+    filtered_data.loc[:, 'Date'] = pd.to_datetime(filtered_data['Date'], errors='coerce')
     filtered_data = filtered_data.dropna(subset=['Date'])
 
-    # Create Song_Artist column
-    filtered_data = filtered_data.copy()
-    filtered_data['Song_Artist'] = (
-        filtered_data['Song'].str.title() + " (" + filtered_data['Artist'].str.title() + ")"
-    )
+    # Get most common capitalization for each song
+    def get_proper_name(series):
+        # Get the most frequent capitalization
+        return series.mode()[0] if len(series.mode()) > 0 else series.iloc[0]
+
+    # Group and get proper capitalization
+    song_names = {}
+    for song_lower in filtered_data['Song_Lower'].unique():
+        song_versions = filtered_data[filtered_data['Song_Lower'] == song_lower]['Song_Clean']
+        song_names[song_lower] = get_proper_name(song_versions)
+
+    artist_proper = get_proper_name(filtered_data['Artist_Clean'])
+
+    # Create Song_Artist column with proper capitalization
+    filtered_data.loc[:, 'Song_Artist'] = filtered_data['Song_Lower'].map(song_names) + f" ({artist_proper})"
 
     # Prepare chart data
     chart_data = {}
@@ -144,8 +158,13 @@ def prepare_visualization_data(artist_name):
     songs_list = []
     for song in filtered_data['Song_Artist'].unique():
         song_df = filtered_data[filtered_data['Song_Artist'] == song]
+        # Extract just the song name (before the parenthesis)
+        song_name_only = song.split(' (')[0] if ' (' in song else song
+
         songs_list.append({
             'name': song,
+            'song_only': song_name_only,
+            'artist_only': artist_proper,
             'peak': int(song_df['Rank'].min()),
             'weeks': len(song_df),
             'first_date': song_df['Date'].min().strftime('%b %Y')
