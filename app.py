@@ -309,37 +309,61 @@ def get_artist_info(artist_name):
     # Try to fetch from Wikipedia first (image + description)
     try:
         import requests
-        wiki_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{requests.utils.quote(artist_name_proper)}"
-        response = requests.get(wiki_url, timeout=10, headers={'User-Agent': 'Mozilla/5.0 BillboardAnalyzer/1.0'})
 
-        if response.status_code == 200:
-            data = response.json()
-            print(f"Wikipedia API response for {artist_name_proper}:", data.keys())
+        # Try multiple Wikipedia search variations for disambiguation
+        wiki_attempts = [
+            artist_name_proper,  # Original name
+            f"{artist_name_proper} (musician)",
+            f"{artist_name_proper} (rapper)",
+            f"{artist_name_proper} (singer)",
+            f"{artist_name_proper} (band)"
+        ]
 
-            # Get Wikipedia image (try multiple sources)
-            if 'originalimage' in data and data['originalimage'] and 'source' in data['originalimage']:
-                image_url = data['originalimage']['source']
-                print(f"✓ Found originalimage: {image_url}")
-            elif 'thumbnail' in data and data['thumbnail'] and 'source' in data['thumbnail']:
-                # Use larger thumbnail - replace size in URL
-                thumb_url = data['thumbnail']['source']
-                image_url = thumb_url.replace('/50px-', '/600px-').replace('/100px-', '/600px-').replace('/200px-', '/600px-').replace('/300px-', '/600px-')
-                print(f"✓ Found thumbnail (enlarged): {image_url}")
-            else:
-                print(f"✗ No image found in Wikipedia response for {artist_name_proper}")
+        for attempt_name in wiki_attempts:
+            try:
+                wiki_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{requests.utils.quote(attempt_name)}"
+                response = requests.get(wiki_url, timeout=10, headers={'User-Agent': 'Mozilla/5.0 BillboardAnalyzer/1.0'})
 
-            # Get Wikipedia description
-            if 'extract' in data and data['extract']:
-                wiki_extract = data['extract']
-                # Use first 2 sentences from Wikipedia
-                sentences = wiki_extract.split('. ')
-                if len(sentences) >= 2:
-                    overview = '. '.join(sentences[:2]) + '.'
-                else:
-                    overview = wiki_extract
-                print(f"✓ Got Wikipedia description: {len(overview)} chars")
+                if response.status_code == 200:
+                    data = response.json()
 
-        print(f"Final: image_url={image_url is not None}, overview_len={len(overview) if overview else 0}")
+                    # Check if this is a disambiguation page
+                    page_type = data.get('type', '')
+                    if page_type == 'disambiguation':
+                        print(f"✗ Disambiguation page for {attempt_name}, trying next...")
+                        continue
+
+                    print(f"✓ Wikipedia page found for {attempt_name}")
+
+                    # Get Wikipedia image (try multiple sources)
+                    if 'originalimage' in data and data['originalimage'] and 'source' in data['originalimage']:
+                        image_url = data['originalimage']['source']
+                        print(f"✓ Found originalimage: {image_url}")
+                    elif 'thumbnail' in data and data['thumbnail'] and 'source' in data['thumbnail']:
+                        # Use larger thumbnail - replace size in URL
+                        thumb_url = data['thumbnail']['source']
+                        image_url = thumb_url.replace('/50px-', '/600px-').replace('/100px-', '/600px-').replace('/200px-', '/600px-').replace('/300px-', '/600px-')
+                        print(f"✓ Found thumbnail (enlarged): {image_url}")
+
+                    # Get Wikipedia description
+                    if 'extract' in data and data['extract']:
+                        wiki_extract = data['extract']
+                        # Use first 2 sentences from Wikipedia
+                        sentences = wiki_extract.split('. ')
+                        if len(sentences) >= 2:
+                            overview = '. '.join(sentences[:2]) + '.'
+                        else:
+                            overview = wiki_extract
+                        print(f"✓ Got Wikipedia description: {len(overview)} chars")
+
+                    # Found valid page, stop trying
+                    break
+
+            except Exception as inner_e:
+                print(f"✗ Error trying {attempt_name}: {inner_e}")
+                continue
+
+        print(f"Wikipedia final: image_url={image_url is not None}, overview_len={len(overview) if overview else 0}")
     except Exception as e:
         print(f"✗ Wikipedia API error for {artist_name_proper}: {e}")
 
@@ -356,6 +380,31 @@ def get_artist_info(artist_name):
                     image_url = artist_obj['images'][0]['url']
         except Exception as e:
             print(f"Spotify API error: {e}")
+
+    # If Spotify isn't available, try to construct Spotify URL from iTunes Search API
+    if not spotify_url:
+        try:
+            from urllib.parse import quote
+
+            # Try iTunes Search API which sometimes has Spotify artist IDs or links
+            itunes_url = f"https://itunes.apple.com/search?term={quote(artist_name_proper)}&entity=allArtist&limit=1"
+            itunes_response = requests.get(itunes_url, timeout=10, headers={'User-Agent': 'BillboardAnalyzer/1.0'})
+
+            if itunes_response.status_code == 200:
+                itunes_data = itunes_response.json()
+                if itunes_data.get('results') and len(itunes_data['results']) > 0:
+                    artist_result = itunes_data['results'][0]
+
+                    # Get artist name from iTunes for potential Spotify search
+                    itunes_artist_name = artist_result.get('artistName', artist_name_proper)
+
+                    # Try to construct Spotify search URL (opens Spotify with search)
+                    # Format: https://open.spotify.com/search/{artist_name}
+                    search_query = quote(itunes_artist_name)
+                    spotify_url = f"https://open.spotify.com/search/{search_query}"
+                    print(f"✓ Created Spotify search URL: {spotify_url}")
+        except Exception as e:
+            print(f"iTunes/Spotify URL construction error: {e}")
 
     return jsonify({
         'name': artist_name_proper,
