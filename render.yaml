@@ -2,6 +2,7 @@ services:
   - type: web
     name: billboard-hot-100-analyzer
     env: python
+    branch: visualization-experiment
     buildCommand: "pip install -r requirements.txt"
     startCommand: "gunicorn app:app"
     envVars:
