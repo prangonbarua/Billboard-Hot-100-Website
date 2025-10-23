@@ -84,6 +84,58 @@ label {
     margin-bottom: 10px;
 }
 
+.autocomplete-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.autocomplete-items {
+    position: absolute;
+    background: #0a0a0a;
+    border: 1px solid #333;
+    border-top: none;
+    z-index: 99;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    border-radius: 0 0 8px 8px;
+}
+
+.autocomplete-items::-webkit-scrollbar {
+    width: 8px;
+}
+
+.autocomplete-items::-webkit-scrollbar-track {
+    background: #000;
+}
+
+.autocomplete-items::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 4px;
+}
+
+.autocomplete-items::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.autocomplete-item {
+    padding: 12px 15px;
+    cursor: pointer;
+    color: #fff;
+    border-bottom: 1px solid #222;
+    transition: background 0.2s;
+}
+
+.autocomplete-item:hover {
+    background: #1a1a1a;
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
 input[type="text"],
 input[type="file"] {
     width: 100%;

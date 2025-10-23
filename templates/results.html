@@ -112,6 +112,12 @@
 
         songs.forEach((song, index) => {
             const data = chartData[song];
+            const dataLength = data.length;
+
+            // Optimize point rendering based on data size
+            const pointRadius = dataLength > 50 ? 0 : dataLength > 20 ? 2 : 3;
+            const borderWidth = dataLength > 100 ? 1.5 : 2;
+
             datasets.push({
                 label: song,
                 data: data.map(item => ({
@@ -120,9 +126,10 @@
                 })),
                 borderColor: colors[index % colors.length],
                 backgroundColor: colors[index % colors.length],
-                borderWidth: 2,
-                pointRadius: 3,
-                pointHoverRadius: 5
+                borderWidth: borderWidth,
+                pointRadius: pointRadius,
+                pointHoverRadius: pointRadius > 0 ? 5 : 3,
+                tension: 0.1
             });
         });
 
@@ -137,7 +144,17 @@
                 responsive: true,
                 maintainAspectRatio: true,
                 aspectRatio: 2,
+                animation: {
+                    duration: 750
+                },
+                parsing: false,
+                normalized: true,
                 plugins: {
+                    decimation: {
+                        enabled: true,
+                        algorithm: 'lttb',
+                        samples: 100
+                    },
                     legend: {
                         display: false
                     },

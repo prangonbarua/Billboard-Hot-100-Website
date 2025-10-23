@@ -118,15 +118,18 @@ def prepare_visualization_data(artist_name):
     data['Song_Lower'] = data['Song_Clean'].str.lower()
     data['Artist_Lower'] = data['Artist_Clean'].str.lower()
 
-    # Filter by artist (case-insensitive)
-    filtered_data = data[data['Artist_Lower'].str.contains(artist_name.lower(), na=False)].copy()
+    # Convert dates first for filtering
+    data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+    data = data.dropna(subset=['Date'])
+
+    # Filter by artist (case-insensitive) and modern era (1990+)
+    filtered_data = data[
+        (data['Artist_Lower'].str.contains(artist_name.lower(), na=False)) &
+        (data['Date'] >= '1990-01-01')
+    ].copy()
 
     if filtered_data.empty:
         return None
-
-    # Convert dates
-    filtered_data.loc[:, 'Date'] = pd.to_datetime(filtered_data['Date'], errors='coerce')
-    filtered_data = filtered_data.dropna(subset=['Date'])
 
     # Get most common capitalization for each song
     def get_proper_name(series):
@@ -215,6 +218,26 @@ def analyze():
     except Exception as e:
         flash(f'An error occurred: {str(e)}', 'error')
         return redirect(url_for('index'))
+
+@app.route('/api/artists')
+def get_artists():
+    """API endpoint for artist autocomplete"""
+    query = request.args.get('q', '').lower()
+
+    # Get modern artists (1990+) from the dataset
+    modern_data = BILLBOARD_DATA[pd.to_datetime(BILLBOARD_DATA['Date'], errors='coerce') >= '1990-01-01']
+
+    # Get unique artists
+    artists = modern_data['Artist'].str.strip().unique()
+
+    # Filter by query if provided
+    if query:
+        artists = [a for a in artists if query in a.lower()]
+
+    # Sort and limit to 50 results
+    artists = sorted(artists)[:50]
+
+    return {'artists': list(artists)}
 
 @app.route('/download/<artist_name>')
 def download_excel(artist_name):
