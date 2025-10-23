@@ -37,18 +37,32 @@
         </div>
 
         <div class="card">
-            <h2>Song Performance</h2>
+            <h2>Song Performance <span class="hint">(Click a song for weekly details)</span></h2>
             <div class="songs-grid">
                 {% for song in songs %}
-                <div class="song-card">
+                <div class="song-card" onclick="showSongDetails('{{ song.name }}')">
                     <h3>{{ song.name }}</h3>
                     <div class="song-stats">
                         <span>Peak: #{{ song.peak }}</span>
                         <span>Weeks: {{ song.weeks }}</span>
                         <span>First: {{ song.first_date }}</span>
                     </div>
+                    <div class="click-hint">Click for weekly breakdown →</div>
                 </div>
                 {% endfor %}
+            </div>
+        </div>
+
+        <!-- Song Details Modal -->
+        <div id="songModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="modalSongName"></h2>
+                    <span class="close" onclick="closeModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div id="weeklyData" class="weekly-data"></div>
+                </div>
             </div>
         </div>
 
@@ -175,6 +189,80 @@
                         }
                     }
                 }
+            }
+        });
+
+        // Modal functions for song details
+        function showSongDetails(songName) {
+            const modal = document.getElementById('songModal');
+            const modalTitle = document.getElementById('modalSongName');
+            const weeklyDataDiv = document.getElementById('weeklyData');
+
+            // Set song name
+            modalTitle.textContent = songName;
+
+            // Get song data
+            const songData = chartData[songName];
+            if (!songData) {
+                weeklyDataDiv.innerHTML = '<p>No data available</p>';
+                modal.style.display = 'block';
+                return;
+            }
+
+            // Sort by date (oldest first)
+            const sortedData = songData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            // Create weekly breakdown
+            let html = '<div class="weekly-list">';
+            sortedData.forEach((entry, index) => {
+                const date = new Date(entry.date);
+                const formattedDate = (date.getMonth() + 1).toString().padStart(2, '0') + '/' +
+                                     date.getDate().toString().padStart(2, '0') + '/' +
+                                     date.getFullYear();
+
+                // Add week number
+                const weekNum = index + 1;
+
+                // Highlight peak position
+                const isPeak = entry.rank === Math.min(...sortedData.map(d => d.rank));
+                const itemClass = isPeak ? 'weekly-item peak' : 'weekly-item';
+
+                html += `
+                    <div class="${itemClass}">
+                        <div class="week-info">
+                            <span class="week-number">Week ${weekNum}</span>
+                            <span class="week-date">${formattedDate}</span>
+                        </div>
+                        <div class="week-position">
+                            <span class="position-number">#${entry.rank}</span>
+                            ${isPeak ? '<span class="peak-badge">PEAK</span>' : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+
+            weeklyDataDiv.innerHTML = html;
+            modal.style.display = 'block';
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('songModal');
+            modal.style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('songModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal();
             }
         });
     </script>
