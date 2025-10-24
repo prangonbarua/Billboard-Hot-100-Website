@@ -821,26 +821,6 @@ footer {
 
 /* #1 Songs Special Effects */
 
-/* #1 Badge on song cards */
-.number-one-badge {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    z-index: 10;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    animation: star-pulse 2s ease-in-out infinite;
-}
-
-.number-one-text {
-    font-size: 12px;
-    font-weight: bold;
-    color: #FFD700;
-    text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
-}
-
 /* Golden glow animation for #1 song cards */
 .number-one-song {
     position: relative;
@@ -869,26 +849,7 @@ footer {
     font-size: 3rem;
 }
 
-.trophy-icon {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    font-size: 24px;
-    animation: trophy-bounce 2s ease-in-out infinite;
-}
-
 /* Animations */
-@keyframes star-pulse {
-    0%, 100% {
-        transform: scale(1);
-        filter: drop-shadow(0 0 5px #FFD700);
-    }
-    50% {
-        transform: scale(1.1);
-        filter: drop-shadow(0 0 15px #FFD700);
-    }
-}
-
 @keyframes golden-glow {
     0%, 100% {
         box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
@@ -909,16 +870,7 @@ footer {
     }
 }
 
-@keyframes trophy-bounce {
-    0%, 100% {
-        transform: translateY(0);
-    }
-    50% {
-        transform: translateY(-5px);
-    }
-}
-
-/* Song cover needs to be relative for badge positioning */
+/* Song cover needs to be relative for positioning */
 .song-cover {
     position: relative;
 }
