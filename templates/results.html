@@ -40,9 +40,12 @@
                     <h3>{{ top_10_hits }}</h3>
                     <p>Top 10 Hits</p>
                 </div>
-                <div class="stat-item">
+                <div class="stat-item {% if number_ones > 0 %}has-number-ones{% endif %}">
                     <h3>{{ number_ones }}</h3>
                     <p>#1 Songs</p>
+                    {% if number_ones > 0 %}
+                    <div class="trophy-icon">🏆</div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -57,8 +60,16 @@
             <h2>Song Performance <span class="hint">(Click a song for weekly details)</span></h2>
             <div class="songs-grid">
                 {% for song in songs %}
-                <div class="song-card" onclick="showSongDetails('{{ song.name }}')">
+                <div class="song-card {% if song.is_number_one %}number-one-song{% endif %}" onclick="showSongDetails('{{ song.name }}')">
                     <div class="song-cover">
+                        {% if song.is_number_one %}
+                        <div class="number-one-badge">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="#FFD700">
+                                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                            </svg>
+                            <span class="number-one-text">#1</span>
+                        </div>
+                        {% endif %}
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%231a1a1a' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='40'%3E♪%3C/text%3E%3C/svg%3E"
                              alt="{{ song.name }}"
                              class="cover-img"

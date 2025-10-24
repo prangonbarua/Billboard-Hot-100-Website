@@ -175,19 +175,21 @@ def prepare_visualization_data(artist_name):
         # Extract just the song name (before the parenthesis)
         song_name_only = song.split(' (')[0] if ' (' in song else song
         first_date = song_df['Date'].min()
+        peak_position = int(song_df['Rank'].min())
 
         songs_list.append({
             'name': song,
             'song_only': song_name_only,
             'artist_only': artist_proper,
-            'peak': int(song_df['Rank'].min()),
+            'peak': peak_position,
             'weeks': len(song_df),
             'first_date': first_date.strftime('%b %Y'),
-            'first_date_sort': first_date  # For sorting
+            'first_date_sort': first_date,  # For sorting
+            'is_number_one': peak_position == 1  # Flag for #1 songs
         })
 
-    # Sort by first chart date (chronological order - oldest first)
-    songs_list.sort(key=lambda x: x['first_date_sort'])
+    # Sort by #1 status first (all #1s at top), then by first chart date
+    songs_list.sort(key=lambda x: (not x['is_number_one'], x['first_date_sort']))
 
     # Calculate top 10 hits and #1 songs
     top_10_hits = len(filtered_data[filtered_data['Rank'] <= 10]['Song_Artist'].unique())
