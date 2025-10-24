@@ -453,7 +453,7 @@
 
         // Create custom scrollable legend with click handlers and album art
         const legendContainer = document.getElementById('customLegend');
-        let legendHTML = '<div class="legend-title">Songs (click to view individual chart history):</div><div class="legend-items">';
+        let legendHTML = '<div class="legend-title">Songs (click to view individual Chart History):</div><div class="legend-items">';
 
         songs.forEach((song, index) => {
             const color = colors[index % colors.length];
@@ -491,7 +491,7 @@
             }
         });
 
-        // Add click handlers to legend items to show individual chart history
+        // Add click handlers to legend items to show individual Chart History
         document.querySelectorAll('.legend-item').forEach(item => {
             item.addEventListener('click', function() {
                 const index = parseInt(this.getAttribute('data-index'));
