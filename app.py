@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 app.secret_key = 'billboard_hot_100_secret_key_change_in_production'
@@ -19,6 +20,10 @@ try:
 except Exception as e:
     print(f"⚠️  Spotify API not configured: {e}")
     SPOTIFY_ENABLED = False
+
+# Rate limiting for downloads (5 per day per IP)
+DOWNLOAD_LIMIT = 5
+download_tracker = {}  # {ip_address: {'count': int, 'reset_time': datetime}}
 
 # Auto-update Billboard data on startup
 print("Checking for Billboard data updates...")
@@ -51,6 +56,40 @@ BILLBOARD_DATA_PATH = find_data_file()
 print(f"Loading Billboard Hot 100 data from {BILLBOARD_DATA_PATH.name}...")
 BILLBOARD_DATA = pd.read_csv(BILLBOARD_DATA_PATH, low_memory=False)
 print(f"Loaded {len(BILLBOARD_DATA)} records!")
+
+def check_download_limit(ip_address):
+    """Check if user has exceeded download limit"""
+    current_time = datetime.now()
+
+    if ip_address not in download_tracker:
+        # First download for this IP
+        download_tracker[ip_address] = {
+            'count': 1,
+            'reset_time': current_time + timedelta(days=1)
+        }
+        return True, 4  # Allowed, 4 remaining
+
+    user_data = download_tracker[ip_address]
+
+    # Check if 24 hours have passed (reset period)
+    if current_time >= user_data['reset_time']:
+        # Reset the counter
+        download_tracker[ip_address] = {
+            'count': 1,
+            'reset_time': current_time + timedelta(days=1)
+        }
+        return True, 4  # Allowed, 4 remaining
+
+    # Check if under limit
+    if user_data['count'] < DOWNLOAD_LIMIT:
+        user_data['count'] += 1
+        remaining = DOWNLOAD_LIMIT - user_data['count']
+        return True, remaining  # Allowed
+
+    # Exceeded limit
+    time_until_reset = user_data['reset_time'] - current_time
+    hours_remaining = int(time_until_reset.total_seconds() // 3600)
+    return False, hours_remaining  # Not allowed, hours until reset
 
 def process_billboard_data(artist_name):
     """Process Billboard data and return Excel file path"""
@@ -469,12 +508,30 @@ def get_song_image(artist_name, song_name):
 def download_excel(artist_name):
     """Download Excel file for artist"""
     try:
+        # Get user's IP address
+        ip_address = request.remote_addr
+
+        # Check rate limit
+        allowed, remaining = check_download_limit(ip_address)
+
+        if not allowed:
+            # Rate limit exceeded
+            return jsonify({
+                'error': 'rate_limit_exceeded',
+                'message': f'Download limit reached. You can download up to {DOWNLOAD_LIMIT} Chart Histories per day. Please try again in {remaining} hours.',
+                'hours_until_reset': remaining
+            }), 429
+
         output_file, error = process_billboard_data(artist_name)
 
         if error:
+            # Rollback the download count if there was an error
+            if ip_address in download_tracker:
+                download_tracker[ip_address]['count'] -= 1
             flash(error, 'error')
             return redirect(url_for('index'))
 
+        print(f"✓ Download allowed for {ip_address}. Remaining today: {remaining}")
         return send_file(
             output_file,
             as_attachment=True,
@@ -483,6 +540,9 @@ def download_excel(artist_name):
         )
 
     except Exception as e:
+        # Rollback the download count if there was an error
+        if ip_address in download_tracker:
+            download_tracker[ip_address]['count'] -= 1
         flash(f'An error occurred: {str(e)}', 'error')
         return redirect(url_for('index'))
 

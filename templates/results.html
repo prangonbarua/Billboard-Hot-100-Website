@@ -93,12 +93,28 @@
         </div>
 
         <div class="card actions">
-            <a href="{{ url_for('download_excel', artist_name=artist_name) }}" class="btn-download">
+            <a href="#" id="downloadBtn" class="btn-download" data-artist="{{ artist_name }}">
                 Download Excel Report
             </a>
             <a href="{{ url_for('index') }}" class="btn-secondary">
                 Search Another Artist
             </a>
+        </div>
+
+        <!-- Rate Limit Modal -->
+        <div id="rateLimitModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Download Limit Reached</h2>
+                    <span class="close" onclick="closeRateLimitModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <p id="rateLimitMessage"></p>
+                </div>
+                <div class="modal-footer">
+                    <button onclick="closeRateLimitModal()" class="btn-secondary">OK</button>
+                </div>
+            </div>
         </div>
 
         <footer>
@@ -628,6 +644,57 @@
         document.addEventListener('keydown', function(event) {
             if (event.key === 'Escape') {
                 closeModal();
+                closeRateLimitModal();
+            }
+        });
+
+        // Handle download button click with rate limiting
+        document.getElementById('downloadBtn').addEventListener('click', async function(e) {
+            e.preventDefault();
+            const artistName = this.getAttribute('data-artist');
+            const downloadUrl = `/download/${encodeURIComponent(artistName)}`;
+
+            try {
+                const response = await fetch(downloadUrl);
+
+                if (response.status === 429) {
+                    // Rate limit exceeded
+                    const data = await response.json();
+                    showRateLimitModal(data.message);
+                } else if (response.ok) {
+                    // Download successful - trigger file download
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${artistName.replace(/ /g, '_')}_Chart_History.xlsx`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } else {
+                    alert('An error occurred while downloading. Please try again.');
+                }
+            } catch (error) {
+                console.error('Download error:', error);
+                alert('An error occurred while downloading. Please try again.');
+            }
+        });
+
+        function showRateLimitModal(message) {
+            document.getElementById('rateLimitMessage').textContent = message;
+            document.getElementById('rateLimitModal').style.display = 'block';
+        }
+
+        function closeRateLimitModal() {
+            document.getElementById('rateLimitModal').style.display = 'none';
+        }
+
+        // Close rate limit modal when clicking outside
+        window.addEventListener('click', function(event) {
+            const rateLimitModal = document.getElementById('rateLimitModal');
+            if (event.target === rateLimitModal) {
+                closeRateLimitModal();
             }
         });
     </script>
