@@ -834,20 +834,6 @@ footer {
     border-color: #FFF;
 }
 
-/* #1 Songs stat special styling */
-.has-number-ones {
-    position: relative;
-    background: linear-gradient(135deg, #1a1a1a 0%, #2a2a1a 100%);
-    border: 2px solid #FFD700;
-    box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
-    animation: stat-glow 4s ease-in-out infinite;
-}
-
-.has-number-ones h3 {
-    color: #FFD700;
-    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
-    font-size: 3rem;
-}
 
 /* Animations */
 @keyframes golden-glow {
@@ -859,18 +845,48 @@ footer {
     }
 }
 
-@keyframes stat-glow {
-    0%, 100% {
-        box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
-        border-color: #FFD700;
-    }
-    50% {
-        box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
-        border-color: #FFF;
-    }
-}
 
 /* Song cover needs to be relative for positioning */
 .song-cover {
     position: relative;
+}
+
+/* Footer Social Links */
+.footer-social-links {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    margin-bottom: 20px;
+}
+
+.footer-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: white;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    padding: 10px 20px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.footer-link:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.footer-link svg {
+    transition: transform 0.3s ease;
+}
+
+.footer-link:hover svg {
+    transform: scale(1.1);
+}
+
+.footer-link span {
+    font-size: 14px;
+    font-weight: 500;
 }
