@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 from flask import Flask, render_template, request, send_file, flash, redirect, url_for, jsonify
+from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import os
 import pandas as pd
 import tempfile
@@ -8,9 +11,26 @@ import subprocess
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 from datetime import datetime, timedelta
+import sys
 
 app = Flask(__name__)
-app.secret_key = 'billboard_hot_100_secret_key_change_in_production'
+# Use environment variable for production, fallback for development
+app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_change_in_production_' + str(os.urandom(24).hex()))
+
+# Security: CORS Protection (only allow your domain in production)
+CORS(app, resources={
+    r"/api/*": {
+        "origins": os.environ.get('ALLOWED_ORIGINS', '*').split(',')
+    }
+})
+
+# Security: Rate Limiting (prevent abuse)
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
 
 # Spotify API setup (using environment variables for credentials)
 # Set SPOTIPY_CLIENT_ID and SPOTIPY_CLIENT_SECRET in environment
@@ -21,9 +41,9 @@ except Exception as e:
     print(f"⚠️  Spotify API not configured: {e}")
     SPOTIFY_ENABLED = False
 
-# Rate limiting for downloads (5 per day per IP)
-DOWNLOAD_LIMIT = 5
-download_tracker = {}  # {ip_address: {'count': int, 'reset_time': datetime}}
+# Rate limiting disabled
+DOWNLOAD_LIMIT = None
+download_tracker = {}
 
 # Auto-update Billboard data on startup
 print("Checking for Billboard data updates...")
@@ -39,13 +59,20 @@ except Exception as e:
 DATA_DIR = Path('data')
 DESKTOP_PATH = Path.home() / 'Desktop' / 'hot100.csv'
 
-# Try data directory first, then Desktop
+# Try current directory first, then data directory, then Desktop
 def find_data_file():
+    # Check current directory
+    for name in ['hot-100-current.csv', 'hot100.csv', 'billboard_hot_100.csv']:
+        filepath = Path(name)
+        if filepath.exists():
+            return filepath
+    # Check data directory
     if DATA_DIR.exists():
         for name in ['hot-100-current.csv', 'hot100.csv', 'billboard_hot_100.csv']:
             filepath = DATA_DIR / name
             if filepath.exists():
                 return filepath
+    # Check desktop
     if DESKTOP_PATH.exists():
         return DESKTOP_PATH
     raise FileNotFoundError("Billboard data not found! Run auto_update_data.py first.")
@@ -57,39 +84,19 @@ print(f"Loading Billboard Hot 100 data from {BILLBOARD_DATA_PATH.name}...")
 BILLBOARD_DATA = pd.read_csv(BILLBOARD_DATA_PATH, low_memory=False)
 print(f"Loaded {len(BILLBOARD_DATA)} records!")
 
+# Load Billboard 200 data
+BILLBOARD_200_PATH = Path('billboard200.csv')
+if BILLBOARD_200_PATH.exists():
+    print(f"Loading Billboard 200 data from {BILLBOARD_200_PATH.name}...")
+    BILLBOARD_200_DATA = pd.read_csv(BILLBOARD_200_PATH, low_memory=False)
+    print(f"Loaded {len(BILLBOARD_200_DATA)} Billboard 200 records!")
+else:
+    print("⚠️  Billboard 200 data not found. Billboard 200 chart will be unavailable.")
+    BILLBOARD_200_DATA = None
+
 def check_download_limit(ip_address):
-    """Check if user has exceeded download limit"""
-    current_time = datetime.now()
-
-    if ip_address not in download_tracker:
-        # First download for this IP
-        download_tracker[ip_address] = {
-            'count': 1,
-            'reset_time': current_time + timedelta(days=1)
-        }
-        return True, 4  # Allowed, 4 remaining
-
-    user_data = download_tracker[ip_address]
-
-    # Check if 24 hours have passed (reset period)
-    if current_time >= user_data['reset_time']:
-        # Reset the counter
-        download_tracker[ip_address] = {
-            'count': 1,
-            'reset_time': current_time + timedelta(days=1)
-        }
-        return True, 4  # Allowed, 4 remaining
-
-    # Check if under limit
-    if user_data['count'] < DOWNLOAD_LIMIT:
-        user_data['count'] += 1
-        remaining = DOWNLOAD_LIMIT - user_data['count']
-        return True, remaining  # Allowed
-
-    # Exceeded limit
-    time_until_reset = user_data['reset_time'] - current_time
-    hours_remaining = int(time_until_reset.total_seconds() // 3600)
-    return False, hours_remaining  # Not allowed, hours until reset
+    """Rate limiting disabled - always allow downloads"""
+    return True, 0  # Always allowed
 
 def process_billboard_data(artist_name):
     """Process Billboard data and return Excel file path"""
@@ -154,6 +161,10 @@ def process_billboard_data(artist_name):
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/about')
+def about():
+    return render_template('about.html')
 
 def prepare_visualization_data(artist_name):
     """Prepare data for visualization"""
@@ -461,9 +472,9 @@ def get_artist_info(artist_name):
         }
     })
 
-@app.route('/api/song-image/<artist_name>/<song_name>')
+@app.route('/api/song-image/<path:artist_name>/<path:song_name>')
 def get_song_image(artist_name, song_name):
-    """API endpoint to get song/album artwork from iTunes API"""
+    """API endpoint to get song/album artwork from iTunes API (path: allows slashes in names)"""
 
     try:
         import requests
@@ -504,34 +515,369 @@ def get_song_image(artist_name, song_name):
         print(f"iTunes API error for '{song_name}' by {artist_name}: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/album-image/<path:artist_name>/<path:album_name>')
+def get_album_image(artist_name, album_name):
+    """API endpoint to get album artwork from iTunes API (path: allows slashes in names)"""
+
+    try:
+        import requests
+        from urllib.parse import quote
+
+        # iTunes API search for albums
+        query = f"{album_name} {artist_name}"
+        itunes_url = f"https://itunes.apple.com/search?term={quote(query)}&media=music&entity=album&limit=3"
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+        }
+
+        response = requests.get(itunes_url, timeout=5, headers=headers)
+
+        if response.status_code == 200 and response.text:
+            try:
+                data = response.json()
+
+                if data.get('resultCount', 0) > 0:
+                    result = data['results'][0]
+                    # Get high-res artwork (replace 100x100 with 600x600)
+                    artwork_url = result.get('artworkUrl100', '').replace('100x100', '600x600')
+
+                    if artwork_url:
+                        return jsonify({
+                            'image_url': artwork_url,
+                            'album_name': result.get('collectionName', ''),
+                            'artist_name': result.get('artistName', ''),
+                            'source': 'itunes'
+                        })
+            except ValueError as json_error:
+                print(f"iTunes JSON parse error for album '{album_name}' by {artist_name}: {json_error}")
+
+        return jsonify({'error': 'Album not found'}), 404
+
+    except Exception as e:
+        print(f"iTunes API error for album '{album_name}' by {artist_name}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/hot100')
+def hot100():
+    """Hot 100 Weekly Chart Viewer"""
+    # Get the selected date from query params (default to latest)
+    selected_date = request.args.get('date', None)
+
+    # Get unique dates from 1958-2025 (entire Billboard Hot 100 history), sorted descending
+    data = BILLBOARD_DATA.copy()
+    data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+    data = data.dropna(subset=['Date'])
+
+    # Filter for 1958-2025 dates (complete Hot 100 history)
+    dates_filtered = data[(data['Date'].dt.year >= 1958) & (data['Date'].dt.year <= 2025)]['Date'].unique()
+    dates_filtered = sorted(dates_filtered, reverse=True)
+
+    # Convert to string format for display
+    available_dates = [pd.Timestamp(d).strftime('%Y-%m-%d') for d in dates_filtered]
+
+    # If no date selected, use the latest
+    if not selected_date and available_dates:
+        selected_date = available_dates[0]
+
+    # Get chart data for selected date
+    chart_songs = []
+    if selected_date:
+        date_data = data[data['Date'] == pd.to_datetime(selected_date)]
+        date_data = date_data.sort_values('Rank')
+
+        selected_date_dt = pd.to_datetime(selected_date)
+
+        # PRE-CALCULATE cumulative weeks for all songs on this chart (PERFORMANCE OPTIMIZATION)
+        # Filter data up to selected date once
+        historical_data = data[data['Date'] <= selected_date_dt].copy()
+        historical_data['Song_Clean'] = historical_data['Song'].str.strip()
+        historical_data['Artist_Clean'] = historical_data['Artist'].str.strip()
+
+        # Group by song+artist and count appearances
+        weeks_lookup = historical_data.groupby(['Song_Clean', 'Artist_Clean']).size().to_dict()
+
+        for _, row in date_data.iterrows():
+            # Helper function to safely convert to int
+            def safe_int(val, default=None):
+                if pd.isna(val):
+                    return default
+                if isinstance(val, str) and (val.strip() == '-' or val.strip() == ''):
+                    return default
+                try:
+                    result = int(float(val))
+                    return result if result != 0 else default
+                except (ValueError, TypeError):
+                    return default
+
+            # Get song info
+            song_name = row['Song'].strip() if pd.notna(row['Song']) else ''
+            artist_name = row['Artist'].strip() if pd.notna(row['Artist']) else ''
+
+            # Lookup cumulative weeks from pre-calculated dictionary
+            cumulative_weeks = weeks_lookup.get((song_name, artist_name), 1)
+
+            song_info = {
+                'rank': int(row['Rank']),
+                'song': song_name,
+                'artist': artist_name,
+                'last_week': safe_int(row['Last Week']),
+                'peak': safe_int(row['Peak Position'], int(row['Rank'])),
+                'weeks': cumulative_weeks,
+            }
+
+            # Calculate position change
+            if song_info['last_week'] is None:
+                song_info['change'] = 'new'
+                song_info['change_amount'] = 0
+            elif song_info['rank'] < song_info['last_week']:
+                song_info['change'] = 'up'
+                song_info['change_amount'] = song_info['last_week'] - song_info['rank']
+            elif song_info['rank'] > song_info['last_week']:
+                song_info['change'] = 'down'
+                song_info['change_amount'] = song_info['rank'] - song_info['last_week']
+            else:
+                song_info['change'] = 'same'
+                song_info['change_amount'] = 0
+
+            chart_songs.append(song_info)
+
+    return render_template(
+        'hot100.html',
+        available_dates=available_dates,
+        selected_date=selected_date,
+        chart_songs=chart_songs
+    )
+
+@app.route('/billboard200')
+def billboard200():
+    """Billboard 200 Weekly Albums Chart Viewer"""
+    if BILLBOARD_200_DATA is None:
+        flash('Billboard 200 data is not available', 'error')
+        return redirect(url_for('index'))
+
+    # Get the selected date from query params (default to latest)
+    selected_date = request.args.get('date', None)
+
+    # Get unique dates from Billboard 200 data
+    data = BILLBOARD_200_DATA.copy()
+    data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+    data = data.dropna(subset=['Date'])
+
+    # Filter for dates (entire Billboard 200 history)
+    dates_filtered = data[(data['Date'].dt.year >= 1963) & (data['Date'].dt.year <= 2025)]['Date'].unique()
+    dates_filtered = sorted(dates_filtered, reverse=True)
+
+    # Convert to string format for display
+    available_dates = [pd.Timestamp(d).strftime('%Y-%m-%d') for d in dates_filtered]
+
+    # If no date selected, use the latest
+    if not selected_date and available_dates:
+        selected_date = available_dates[0]
+
+    # Get chart data for selected date
+    chart_songs = []
+    if selected_date:
+        date_data = data[data['Date'] == pd.to_datetime(selected_date)]
+        date_data = date_data.sort_values('Rank')
+
+        selected_date_dt = pd.to_datetime(selected_date)
+
+        # PRE-CALCULATE cumulative weeks for all albums on this chart
+        historical_data = data[data['Date'] <= selected_date_dt].copy()
+        historical_data['Song_Clean'] = historical_data['Song'].str.strip()
+        historical_data['Artist_Clean'] = historical_data['Artist'].str.strip()
+
+        # Group by album+artist and count appearances
+        weeks_lookup = historical_data.groupby(['Song_Clean', 'Artist_Clean']).size().to_dict()
+
+        for _, row in date_data.iterrows():
+            # Helper function to safely convert to int
+            def safe_int(val, default=None):
+                if pd.isna(val):
+                    return default
+                if isinstance(val, str) and (val.strip() == '-' or val.strip() == ''):
+                    return default
+                try:
+                    result = int(float(val))
+                    return result if result != 0 else default
+                except (ValueError, TypeError):
+                    return default
+
+            # Get album info
+            song_name = row['Song'].strip() if pd.notna(row['Song']) else ''
+            artist_name = row['Artist'].strip() if pd.notna(row['Artist']) else ''
+
+            # Lookup cumulative weeks from pre-calculated dictionary
+            cumulative_weeks = weeks_lookup.get((song_name, artist_name), 1)
+
+            song_info = {
+                'rank': int(row['Rank']),
+                'song': song_name,
+                'artist': artist_name,
+                'last_week': safe_int(row['Last Week']),
+                'peak': safe_int(row['Peak Position'], int(row['Rank'])),
+                'weeks': cumulative_weeks,
+            }
+
+            # Calculate position change
+            if song_info['last_week'] is None:
+                song_info['change'] = 'new'
+                song_info['change_amount'] = 0
+            elif song_info['rank'] < song_info['last_week']:
+                song_info['change'] = 'up'
+                song_info['change_amount'] = song_info['last_week'] - song_info['rank']
+            elif song_info['rank'] > song_info['last_week']:
+                song_info['change'] = 'down'
+                song_info['change_amount'] = song_info['rank'] - song_info['last_week']
+            else:
+                song_info['change'] = 'same'
+                song_info['change_amount'] = 0
+
+            chart_songs.append(song_info)
+
+    return render_template(
+        'billboard200.html',
+        available_dates=available_dates,
+        selected_date=selected_date,
+        chart_songs=chart_songs
+    )
+
+@app.route('/api/song-history')
+def get_song_history():
+    """Get full chart history for a specific song (using query parameters to support slashes in names)"""
+    artist = request.args.get('artist', '')
+    song = request.args.get('song', '')
+
+    if not artist or not song:
+        return jsonify({'error': 'Missing artist or song parameter'}), 400
+
+    data = BILLBOARD_DATA.copy()
+    data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+    data = data.dropna(subset=['Date'])
+
+    # Clean and filter
+    data['Song_Clean'] = data['Song'].str.strip().str.lower()
+    data['Artist_Clean'] = data['Artist'].str.strip().str.lower()
+
+    song_data = data[
+        (data['Song_Clean'] == song.lower()) &
+        (data['Artist_Clean'] == artist.lower())
+    ].copy()
+
+    if song_data.empty:
+        return jsonify({'error': 'No history found'}), 404
+
+    # Sort by date
+    song_data = song_data.sort_values('Date')
+
+    # Helper function to safely convert to int
+    def safe_int(val, default=None):
+        if pd.isna(val):
+            return default
+        if isinstance(val, str) and (val.strip() == '-' or val.strip() == ''):
+            return default
+        try:
+            result = int(float(val))
+            return result if result != 0 else default
+        except (ValueError, TypeError):
+            return default
+
+    history = []
+    for idx, (_, row) in enumerate(song_data.iterrows(), start=1):
+        # Cumulative weeks = index position (starting from 1)
+        history.append({
+            'date': row['Date'].strftime('%Y-%m-%d'),
+            'rank': int(row['Rank']),
+            'weeks': idx
+        })
+
+    # Get stats
+    peak = int(song_data['Rank'].min())
+    total_weeks = len(song_data)
+
+    return jsonify({
+        'history': history,
+        'peak': peak,
+        'total_weeks': total_weeks,
+        'song': song,
+        'artist': artist
+    })
+
+@app.route('/api/album-history')
+def get_album_history():
+    """Get full chart history for a specific album (using query parameters to support slashes in names)"""
+    if BILLBOARD_200_DATA is None:
+        return jsonify({'error': 'Billboard 200 data not available'}), 404
+
+    artist = request.args.get('artist', '')
+    album = request.args.get('album', '')
+
+    if not artist or not album:
+        return jsonify({'error': 'Missing artist or album parameter'}), 400
+
+    data = BILLBOARD_200_DATA.copy()
+    data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+    data = data.dropna(subset=['Date'])
+
+    # Clean and filter (Song column contains album names in Billboard 200 data)
+    data['Album_Clean'] = data['Song'].str.strip().str.lower()
+    data['Artist_Clean'] = data['Artist'].str.strip().str.lower()
+
+    album_data = data[
+        (data['Album_Clean'] == album.lower()) &
+        (data['Artist_Clean'] == artist.lower())
+    ].copy()
+
+    if album_data.empty:
+        return jsonify({'error': 'No history found'}), 404
+
+    # Sort by date
+    album_data = album_data.sort_values('Date')
+
+    # Helper function to safely convert to int
+    def safe_int(val, default=None):
+        if pd.isna(val):
+            return default
+        if isinstance(val, str) and (val.strip() == '-' or val.strip() == ''):
+            return default
+        try:
+            result = int(float(val))
+            return result if result != 0 else default
+        except (ValueError, TypeError):
+            return default
+
+    history = []
+    for idx, (_, row) in enumerate(album_data.iterrows(), start=1):
+        # Cumulative weeks = index position (starting from 1)
+        history.append({
+            'date': row['Date'].strftime('%Y-%m-%d'),
+            'rank': int(row['Rank']),
+            'weeks': idx
+        })
+
+    # Get stats
+    peak = int(album_data['Rank'].min())
+    total_weeks = len(album_data)
+
+    return jsonify({
+        'history': history,
+        'peak': peak,
+        'total_weeks': total_weeks,
+        'album': album,
+        'artist': artist
+    })
+
 @app.route('/download/<artist_name>')
 def download_excel(artist_name):
     """Download Excel file for artist"""
     try:
-        # Get user's IP address
-        ip_address = request.remote_addr
-
-        # Check rate limit
-        allowed, remaining = check_download_limit(ip_address)
-
-        if not allowed:
-            # Rate limit exceeded
-            return jsonify({
-                'error': 'rate_limit_exceeded',
-                'message': f'Download limit reached. You can download up to {DOWNLOAD_LIMIT} Chart Histories per day. Please try again in {remaining} hours.',
-                'hours_until_reset': remaining
-            }), 429
-
         output_file, error = process_billboard_data(artist_name)
 
         if error:
-            # Rollback the download count if there was an error
-            if ip_address in download_tracker:
-                download_tracker[ip_address]['count'] -= 1
             flash(error, 'error')
             return redirect(url_for('index'))
 
-        print(f"✓ Download allowed for {ip_address}. Remaining today: {remaining}")
         return send_file(
             output_file,
             as_attachment=True,
@@ -540,9 +886,6 @@ def download_excel(artist_name):
         )
 
     except Exception as e:
-        # Rollback the download count if there was an error
-        if ip_address in download_tracker:
-            download_tracker[ip_address]['count'] -= 1
         flash(f'An error occurred: {str(e)}', 'error')
         return redirect(url_for('index'))
 
@@ -551,7 +894,9 @@ if __name__ == '__main__':
     print("Billboard Hot 100 Chart Analyzer - Web App")
     print("="*60)
     print("\nStarting server...")
-    print("Open your browser and go to: http://localhost:5001")
+    port = int(os.environ.get('PORT', 5001))
+    debug_mode = os.environ.get('FLASK_ENV', 'development') == 'development'
+    print(f"Open your browser and go to: http://localhost:{port}")
     print("\nPress CTRL+C to stop the server")
     print("="*60 + "\n")
-    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5001)))
+    app.run(debug=debug_mode, host='0.0.0.0', port=port)

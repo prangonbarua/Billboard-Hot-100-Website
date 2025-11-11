@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billboard 200™ Chart</title>
+    <style>
+        @font-face {
+            font-family: 'Halyard Text';
+            src: url('/static/fonts/fonnts.com-Halyard_Text_Regular.otf') format('opentype');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Halyard Text';
+            src: url('/static/fonts/fonnts.com-Halyard_Text_Regular.otf') format('opentype');
+            font-weight: 500;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Halyard Text';
+            src: url('/static/fonts/fonnts.com-Halyard_Text_Regular.otf') format('opentype');
+            font-weight: 600;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Halyard Text';
+            src: url('/static/fonts/fonnts.com-Halyard_Text_Regular.otf') format('opentype');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Halyard Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: #888;
+            margin-bottom: 2rem;
+        }
+
+        .date-selector {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        .date-selector label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #999;
+        }
+
+        select {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: #fff;
+            padding: 0.5rem 1rem;
+            font-size: 0.95rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: border-color 0.2s;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #555;
+        }
+
+        .chart-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .chart-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background: #111;
+            border: 1px solid #1a1a1a;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+            transition: left 0.5s;
+        }
+
+        .chart-item:hover {
+            background: #151515;
+            border-color: #333;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+            transform: translateY(-2px) scale(1.01);
+        }
+
+        .chart-item:hover::before {
+            left: 100%;
+        }
+
+        .chart-item:active {
+            transform: translateY(0) scale(0.99);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .chart-rank {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 50px;
+        }
+
+        .rank-number {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #fff;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s;
+        }
+
+        .chart-item:hover .rank-number {
+            transform: scale(1.15);
+            color: #fff;
+        }
+
+        .change-badge {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.125rem 0.375rem;
+            border-radius: 4px;
+            margin-top: 0.25rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .chart-item:hover .change-badge {
+            transform: scale(1.1);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+        }
+
+        .change-badge.new {
+            background: #444;
+            color: #ddd;
+        }
+
+        .change-badge.up {
+            background: #1a3a1a;
+            color: #6bff6b;
+        }
+
+        .change-badge.down {
+            background: #3a1a1a;
+            color: #ff6b6b;
+        }
+
+        .change-badge.same {
+            background: #2a2a1a;
+            color: #ffeb6b;
+        }
+
+        .song-artwork {
+            width: 50px;
+            height: 50px;
+            border-radius: 4px;
+            overflow: hidden;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s;
+        }
+
+        .chart-item:hover .song-artwork {
+            transform: scale(1.1) rotate(2deg);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
+        }
+
+        .artwork-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: filter 0.3s;
+        }
+
+        .chart-item:hover .artwork-img {
+            filter: brightness(1.1);
+        }
+
+        .song-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .song-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #fff;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            transition: color 0.2s, transform 0.2s;
+        }
+
+        .chart-item:hover .song-title {
+            color: #fff;
+            transform: translateX(4px);
+        }
+
+        .song-artist {
+            font-size: 0.875rem;
+            color: #888;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            transition: color 0.2s, transform 0.2s;
+        }
+
+        .chart-item:hover .song-artist {
+            color: #aaa;
+            transform: translateX(4px);
+        }
+
+        .song-stats {
+            display: flex;
+            gap: 1.5rem;
+            margin-left: auto;
+            flex-shrink: 0;
+            transition: transform 0.2s;
+        }
+
+        .chart-item:hover .song-stats {
+            transform: translateX(-4px);
+        }
+
+        .stat-item {
+            font-size: 0.8rem;
+            color: #666;
+            white-space: nowrap;
+            transition: color 0.2s;
+        }
+
+        .chart-item:hover .stat-item {
+            color: #888;
+        }
+
+        .stat-value {
+            font-weight: 600;
+            color: #fff;
+            transition: color 0.2s;
+        }
+
+        .chart-item:hover .stat-value {
+            color: #fff;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            background: #111;
+            margin: 5% auto;
+            padding: 0;
+            border: 1px solid #222;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 80vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            border-bottom: 1px solid #1a1a1a;
+        }
+
+        .modal-header h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .close {
+            color: #666;
+            font-size: 2rem;
+            font-weight: 300;
+            cursor: pointer;
+            transition: color 0.2s;
+            line-height: 1;
+        }
+
+        .close:hover {
+            color: #fff;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-box {
+            background: #1a1a1a;
+            border: 1px solid #222;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        .stat-box .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .stat-box .stat-label {
+            font-size: 0.875rem;
+            color: #888;
+            margin-top: 0.25rem;
+        }
+
+        .history-timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .history-entry {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background: #1a1a1a;
+            border: 1px solid #222;
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .history-entry.peak-entry {
+            background: #1a2a1a;
+            border-color: #2a4a2a;
+            box-shadow: 0 2px 8px rgba(107, 255, 107, 0.2);
+        }
+
+        .entry-date {
+            font-size: 0.875rem;
+            color: #888;
+            min-width: 100px;
+        }
+
+        .entry-rank {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #fff;
+            min-width: 50px;
+        }
+
+        .entry-week {
+            font-size: 0.875rem;
+            color: #666;
+        }
+
+        .peak-indicator {
+            background: #1a3a1a;
+            color: #6bff6b;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            margin-left: auto;
+            box-shadow: 0 2px 6px rgba(107, 255, 107, 0.3);
+        }
+
+        footer {
+            margin-top: 4rem;
+            padding: 2rem;
+            border-top: 1px solid #1a1a1a;
+            text-align: center;
+        }
+
+        .footer-social-links {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .footer-link {
+            color: #666;
+            transition: color 0.2s;
+        }
+
+        .footer-link:hover {
+            color: #fff;
+        }
+
+        footer p {
+            font-size: 0.875rem;
+            color: #666;
+        }
+
+        .nav {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #1a1a1a;
+        }
+
+        .nav a {
+            color: #888;
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav a:hover {
+            color: #fff;
+        }
+
+        .nav a.active {
+            color: #fff;
+        }
+
+        @media (max-width: 768px) {
+            .song-stats {
+                display: none;
+            }
+
+            .stat-item {
+                font-size: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="nav">
+            <a href="{{ url_for('index') }}">Home</a>
+            <a href="{{ url_for('hot100') }}">Hot 100 Chart</a>
+            <a href="{{ url_for('billboard200') }}" class="active">Billboard 200</a>
+        </nav>
+
+        <h1>Billboard 200™</h1>
+        <p class="subtitle">{{ selected_date }}</p>
+
+        <div class="date-selector">
+            <label for="yearSelect">Year:</label>
+            <select id="yearSelect" onchange="filterWeeks()">
+                <!-- Will be populated by JavaScript -->
+            </select>
+
+            <label for="dateSelect" style="margin-left: 1.5rem;">Week:</label>
+            <select id="dateSelect" onchange="changeDate(this.value)">
+                {% for date in available_dates %}
+                <option value="{{ date }}" {% if date == selected_date %}selected{% endif %}>
+                    {{ date }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="chart-list">
+            {% for song in chart_songs %}
+            <div class="chart-item" onclick="showSongHistory('{{ song.artist }}', '{{ song.song }}')">
+                <div class="chart-rank">
+                    <div class="rank-number">#{{ song.rank }}</div>
+                    {% if song.change == 'new' %}
+                    <span class="change-badge new">NEW</span>
+                    {% elif song.change == 'up' %}
+                    <span class="change-badge up">▲ {{ song.change_amount }}</span>
+                    {% elif song.change == 'down' %}
+                    <span class="change-badge down">▼ {{ song.change_amount }}</span>
+                    {% elif song.change == 'same' %}
+                    <span class="change-badge same">—</span>
+                    {% endif %}
+                </div>
+
+                <div class="song-artwork">
+                    <img
+                        src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50'%3E%3Crect fill='%231a1a1a' width='50' height='50'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='20'%3E♪%3C/text%3E%3C/svg%3E"
+                        alt="{{ song.song }}"
+                        class="artwork-img"
+                        data-song="{{ song.song }}"
+                        data-artist="{{ song.artist }}"
+                        loading="lazy"
+                    >
+                </div>
+
+                <div class="song-details">
+                    <div class="song-title">{{ song.song }}</div>
+                    <div class="song-artist">{{ song.artist }}</div>
+                </div>
+
+                <div class="song-stats">
+                    <span class="stat-item">
+                        Last: <span class="stat-value">{% if song.last_week %}#{{ song.last_week }}{% else %}—{% endif %}</span>
+                    </span>
+                    <span class="stat-item">
+                        Peak: <span class="stat-value">#{{ song.peak }}</span>
+                    </span>
+                    <span class="stat-item">
+                        Weeks: <span class="stat-value">{{ song.weeks }}</span>
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <footer>
+            <div class="footer-social-links">
+                <a href="https://www.youtube.com/@HistoryCharts" target="_blank" class="footer-link" title="YouTube" aria-label="YouTube">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                    </svg>
+                </a>
+                <a href="https://www.patreon.com/Chart_History" target="_blank" class="footer-link" title="Patreon" aria-label="Patreon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M15.386.524c-4.764 0-8.64 3.876-8.64 8.64 0 4.75 3.876 8.613 8.64 8.613 4.75 0 8.614-3.864 8.614-8.613C24 4.4 20.136.524 15.386.524M.003 23.537h4.22V.524H.003"/>
+                    </svg>
+                </a>
+            </div>
+            <p>Billboard 200™ Albums Chart</p>
+        </footer>
+    </div>
+
+    <!-- Song History Modal -->
+    <div id="historyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle"></h2>
+                <span class="close" onclick="closeHistoryModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="modalStats" class="modal-stats"></div>
+                <div id="modalHistory" class="history-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // All available dates from the server
+        const allDates = {{ available_dates|tojson }};
+        const selectedDate = "{{ selected_date }}";
+
+        // Initialize year selector on page load
+        function initYearSelector() {
+            const yearSelect = document.getElementById('yearSelect');
+            const years = [...new Set(allDates.map(date => date.split('-')[0]))].sort().reverse();
+
+            years.forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                yearSelect.appendChild(option);
+            });
+
+            // Set selected year based on current date
+            if (selectedDate) {
+                const currentYear = selectedDate.split('-')[0];
+                yearSelect.value = currentYear;
+                filterWeeks();
+            }
+        }
+
+        // Filter weeks based on selected year
+        function filterWeeks() {
+            const yearSelect = document.getElementById('yearSelect');
+            const dateSelect = document.getElementById('dateSelect');
+            const selectedYear = yearSelect.value;
+
+            // Clear existing options
+            dateSelect.innerHTML = '';
+
+            // Filter dates by selected year
+            const filteredDates = allDates.filter(date => date.startsWith(selectedYear));
+
+            // Populate week dropdown
+            filteredDates.forEach(date => {
+                const option = document.createElement('option');
+                option.value = date;
+                option.textContent = date;
+                if (date === selectedDate) {
+                    option.selected = true;
+                }
+                dateSelect.appendChild(option);
+            });
+
+            // If no date is selected, select the first one
+            if (!selectedDate || !selectedDate.startsWith(selectedYear)) {
+                if (filteredDates.length > 0) {
+                    dateSelect.value = filteredDates[0];
+                }
+            }
+        }
+
+        function changeDate(date) {
+            window.location.href = `{{ url_for('billboard200') }}?date=${date}`;
+        }
+
+        // Initialize on page load
+        initYearSelector();
+
+        // Lazy load album artwork from iTunes using Intersection Observer
+        const imageObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    const song = img.getAttribute('data-song');
+                    const artist = img.getAttribute('data-artist');
+
+                    if (song && artist && !img.hasAttribute('data-loaded')) {
+                        img.setAttribute('data-loaded', 'true');
+                        fetch(`/api/album-image/${encodeURIComponent(artist)}/${encodeURIComponent(song)}`)
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.image_url) {
+                                    img.src = data.image_url;
+                                }
+                            })
+                            .catch(error => {
+                                console.log(`Could not load image for ${song}:`, error);
+                            });
+                        observer.unobserve(img);
+                    }
+                }
+            });
+        }, {
+            rootMargin: '50px' // Start loading 50px before the image enters viewport
+        });
+
+        // Observe all artwork images
+        document.querySelectorAll('.artwork-img').forEach(img => {
+            imageObserver.observe(img);
+        });
+
+        function showSongHistory(artist, song) {
+            const modal = document.getElementById('historyModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalStats = document.getElementById('modalStats');
+            const modalHistory = document.getElementById('modalHistory');
+
+            modalTitle.textContent = `${song} - ${artist}`;
+            modalStats.innerHTML = '<p style="text-align: center; color: #999;">Loading...</p>';
+            modalHistory.innerHTML = '';
+            modal.style.display = 'block';
+
+            fetch(`/api/album-history?artist=${encodeURIComponent(artist)}&album=${encodeURIComponent(song)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        modalStats.innerHTML = '<p style="text-align: center; color: #ff6b6b;">No history found</p>';
+                        return;
+                    }
+
+                    modalStats.innerHTML = `
+                        <div class="stats-grid">
+                            <div class="stat-box">
+                                <div class="stat-value">#${data.peak}</div>
+                                <div class="stat-label">Peak Position</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-value">${data.total_weeks}</div>
+                                <div class="stat-label">Total Weeks</div>
+                            </div>
+                        </div>
+                    `;
+
+                    let historyHTML = '<div class="history-timeline">';
+                    data.history.forEach((entry, index) => {
+                        const isPeak = entry.rank === data.peak;
+                        historyHTML += `
+                            <div class="history-entry ${isPeak ? 'peak-entry' : ''}">
+                                <div class="entry-date">${entry.date}</div>
+                                <div class="entry-rank">#${entry.rank}</div>
+                                <div class="entry-week">Week ${entry.weeks}</div>
+                                ${isPeak ? '<div class="peak-indicator">PEAK</div>' : ''}
+                            </div>
+                        `;
+                    });
+                    historyHTML += '</div>';
+                    modalHistory.innerHTML = historyHTML;
+                })
+                .catch(error => {
+                    console.error('Error fetching song history:', error);
+                    modalStats.innerHTML = '<p style="text-align: center; color: #ff6b6b;">Error loading history</p>';
+                });
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('historyModal').style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('historyModal');
+            if (event.target === modal) {
+                closeHistoryModal();
+            }
+        }
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeHistoryModal();
+            }
+        });
+    </script>
+</body>
+</html>

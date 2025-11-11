@@ -4,6 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ artist_name }} - Chart History</title>
+    <style>
+        @font-face {
+            font-family: 'Halyard Text';
+            src: url('/static/fonts/fonnts.com-Halyard_Text_Regular.otf') format('opentype');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Halyard Text';
+            src: url('/static/fonts/fonnts.com-Halyard_Text_Regular.otf') format('opentype');
+            font-weight: 500;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Halyard Text';
+            src: url('/static/fonts/fonnts.com-Halyard_Text_Regular.otf') format('opentype');
+            font-weight: 600;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Halyard Text';
+            src: url('/static/fonts/fonnts.com-Halyard_Text_Regular.otf') format('opentype');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
+    </style>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
@@ -12,9 +45,15 @@
 </head>
 <body>
     <div class="container">
+        <nav class="nav">
+            <a href="{{ url_for('index') }}">Home</a>
+            <a href="{{ url_for('hot100') }}">Hot 100</a>
+            <a href="{{ url_for('billboard200') }}">Billboard 200</a>
+        </nav>
+
         <header>
             <h1>{{ artist_name }}</h1>
-            <p class="subtitle">Billboard Hot 100 Chart History</p>
+            <p class="subtitle">Billboard Hot 100™ Chart History</p>
         </header>
 
         <!-- Artist Overview Section -->
@@ -130,7 +169,7 @@
                     </svg>
                 </a>
             </div>
-            <p>Billboard Hot 100 Chart Analyzer</p>
+            <p>Billboard Hot 100™ Chart Analyzer</p>
         </footer>
     </div>
 
@@ -335,9 +374,9 @@
                                 // Adaptive time unit based on zoom level
                                 let newUnit, newSource;
                                 if (rangeDays <= 90) {
-                                    // Less than 3 months - show actual Billboard chart weeks
+                                    // Less than 3 months - show actual Billboard™ chart weeks
                                     newUnit = 'week';
-                                    newSource = 'data'; // Use actual data points (Billboard chart dates)
+                                    newSource = 'data'; // Use actual data points (Billboard™ chart dates)
                                 } else if (rangeDays <= 730) {
                                     // Less than 2 years - show months
                                     newUnit = 'month';
@@ -357,7 +396,7 @@
                                     chart.options.scales.x.ticks.callback = function(value, index, ticks) {
                                         const date = new Date(value);
                                         if (newUnit === 'week') {
-                                            // Show official Billboard chart date (MM/DD/YYYY)
+                                            // Show official Billboard™ chart date (MM/DD/YYYY)
                                             const month = String(date.getMonth() + 1).padStart(2, '0');
                                             const day = String(date.getDate()).padStart(2, '0');
                                             const year = date.getFullYear();
